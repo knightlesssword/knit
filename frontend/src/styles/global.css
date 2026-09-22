@@ -1,0 +1,253 @@
+/* knit visual foundation: black/white/gray, typography-first, whitespace.
+ * Hierarchy comes from type scale, spacing, alignment and subtle borders.
+ * No gradients, shadows, cards, or decorative effects (project.md section 28). */
+
+:root {
+  --ink: #111;
+  --ink-soft: #444;
+  --muted: #767676;
+  --line: #e4e4e4;
+  --paper: #fff;
+  --wash: #f7f7f7;
+  --space-1: 0.25rem;
+  --space-2: 0.5rem;
+  --space-3: 0.75rem;
+  --space-4: 1rem;
+  --space-6: 1.5rem;
+  --space-8: 2rem;
+  --space-12: 3rem;
+  --measure: 42rem;
+  --radius: 2px;
+}
+
+* {
+  box-sizing: border-box;
+}
+
+html {
+  -webkit-text-size-adjust: 100%;
+}
+
+body {
+  margin: 0;
+  color: var(--ink);
+  background: var(--paper);
+  font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", "Helvetica Neue", Arial,
+    sans-serif;
+  font-size: 1rem;
+  line-height: 1.6;
+}
+
+h1,
+h2,
+h3 {
+  font-weight: 600;
+  line-height: 1.25;
+  letter-spacing: -0.01em;
+  margin: 0 0 var(--space-4);
+}
+
+h1 {
+  font-size: 1.75rem;
+}
+
+h2 {
+  font-size: 1.25rem;
+}
+
+p {
+  margin: 0 0 var(--space-4);
+}
+
+.meta {
+  color: var(--muted);
+  font-size: 0.875rem;
+  line-height: 1.5;
+}
+
+a {
+  color: inherit;
+  text-underline-offset: 3px;
+}
+
+:focus-visible {
+  outline: 2px solid var(--ink);
+  outline-offset: 2px;
+}
+
+button,
+input,
+select,
+textarea {
+  font: inherit;
+}
+
+label {
+  display: block;
+  font-size: 0.875rem;
+  margin-bottom: var(--space-1);
+}
+
+input {
+  width: 100%;
+  padding: var(--space-2) var(--space-3);
+  border: 1px solid var(--line);
+  border-radius: var(--radius);
+  background: var(--paper);
+  color: var(--ink);
+}
+
+input[aria-invalid="true"] {
+  border-color: var(--ink);
+  border-width: 2px;
+}
+
+.field {
+  margin-bottom: var(--space-4);
+}
+
+.field-error {
+  font-size: 0.875rem;
+  margin-top: var(--space-1);
+  color: var(--ink);
+}
+
+.form-error {
+  border-top: 1px solid var(--line);
+  border-bottom: 1px solid var(--line);
+  padding: var(--space-3) 0;
+  margin-bottom: var(--space-4);
+}
+
+button {
+  cursor: pointer;
+  background: var(--ink);
+  color: var(--paper);
+  border: 1px solid var(--ink);
+  border-radius: var(--radius);
+  padding: var(--space-2) var(--space-4);
+  transition: opacity 120ms ease;
+}
+
+button:hover {
+  opacity: 0.85;
+}
+
+button:disabled {
+  opacity: 0.5;
+  cursor: default;
+}
+
+button.secondary {
+  background: transparent;
+  color: var(--ink);
+}
+
+.shell {
+  display: grid;
+  grid-template-columns: 12rem 1fr;
+  min-height: 100vh;
+}
+
+.side {
+  border-right: 1px solid var(--line);
+  padding: var(--space-6) var(--space-4);
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-6);
+}
+
+.brand {
+  font-weight: 700;
+  font-size: 1.125rem;
+  text-decoration: none;
+}
+
+.side nav {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-1);
+}
+
+.side nav a {
+  text-decoration: none;
+  padding: var(--space-1) var(--space-2);
+  color: var(--ink-soft);
+}
+
+.side nav a[aria-current="page"] {
+  color: var(--ink);
+  font-weight: 600;
+  border-left: 2px solid var(--ink);
+  padding-left: calc(var(--space-2) - 2px);
+}
+
+.side nav a:hover {
+  color: var(--ink);
+}
+
+.main {
+  padding: var(--space-8) var(--space-6);
+  max-width: var(--measure);
+}
+
+.rule {
+  border: 0;
+  border-top: 1px solid var(--line);
+  margin: var(--space-6) 0;
+}
+
+.state {
+  padding: var(--space-6) 0;
+}
+
+.progress {
+  height: 4px;
+  background: var(--wash);
+  border: 1px solid var(--line);
+  border-radius: var(--radius);
+  overflow: hidden;
+}
+
+.progress > span {
+  display: block;
+  height: 100%;
+  background: var(--ink);
+  transition: width 150ms ease;
+}
+
+@media (max-width: 640px) {
+  .shell {
+    grid-template-columns: 1fr;
+  }
+
+  .side {
+    border-right: 0;
+    border-bottom: 1px solid var(--line);
+    padding: var(--space-4);
+  }
+
+  .side nav {
+    flex-direction: row;
+    flex-wrap: wrap;
+    gap: var(--space-3);
+  }
+
+  .side nav a[aria-current="page"] {
+    border-left: 0;
+    border-bottom: 2px solid var(--ink);
+    padding-left: var(--space-2);
+  }
+
+  .main {
+    padding: var(--space-6) var(--space-4);
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  *,
+  *::before,
+  *::after {
+    transition: none !important;
+  }
+}

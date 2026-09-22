@@ -1,0 +1,38 @@
+# python
+__pycache__/
+*.py[cod]
+*.egg-info/
+.venv/
+venv/
+.pytest_cache/
+.mypy_cache/
+
+# backend runtime
+backend/data/
+*.db
+*.db-wal
+*.db-shm
+
+# node
+node_modules/
+frontend/dist/
+frontend/.vite/
+*.local
+
+# test / coverage
+.coverage
+coverage/
+htmlcov/
+
+# os / editor
+.DS_Store
+Thumbs.db
+.vscode/
+.idea/
+
+# env
+.env
+.env.local
+
+# git
+*.orig

@@ -6,6 +6,8 @@ import { OverviewPage, PhasePlaceholder } from "../features/dashboard/OverviewPa
 import { AboutPage } from "../features/about/AboutPage";
 import { ClientsPage } from "../features/clients/ClientsPage";
 import { ClientDetailPage } from "../features/clients/ClientDetailPage";
+import { ProjectsPage } from "../features/projects/ProjectsPage";
+import { ProjectDetailPage } from "../features/projects/ProjectDetailPage";
 
 const router = createBrowserRouter([
   { path: "/login", element: <LoginPage /> },
@@ -15,7 +17,8 @@ const router = createBrowserRouter([
     element: <Shell />,
     children: [
       { index: true, element: <OverviewPage /> },
-      { path: "projects", element: <PhasePlaceholder title="projects" phase="phase 2" /> },
+      { path: "projects", element: <ProjectsPage /> },
+      { path: "projects/:id", element: <ProjectDetailPage /> },
       { path: "clients", element: <ClientsPage /> },
       { path: "clients/:id", element: <ClientDetailPage /> },
       { path: "tasks", element: <PhasePlaceholder title="tasks" phase="phase 3" /> },

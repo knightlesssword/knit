@@ -7,15 +7,15 @@ and data.
 specs: `project.md` (product), `agents.md` (engineering rules). both are
 authoritative — read them before changing anything.
 
-## status: phase 1 clients
+## status: phase 2 projects
 
-working: backend shell, sqlite + migrations (users, clients), auth
-(register/login/me), per-user client crud, frontend shell with auth pages,
-clients list/detail, about page, pwa shell, backend + frontend test suites.
+working: backend shell, sqlite + migrations (users, clients, projects), auth,
+per-user client crud, per-user project crud with archive, frontend shell with
+auth pages, clients list/detail, projects list/detail/overview, about page,
+pwa shell, backend + frontend test suites.
 
-not yet built: projects (phase 2), tasks (phase 3), time (phase 4),
-money/invoices (phase 5), files/comments (phase 6), command palette + search
-(phase 7).
+not yet built: tasks/milestones (phase 3), time (phase 4), money/invoices
+(phase 5), files/comments (phase 6), command palette + search (phase 7).
 
 ## prerequisites
 
@@ -85,6 +85,14 @@ cd frontend; npm run build             # typecheck + production build
 - `GET /api/clients/{id}` → 200 client, or 404 (also when owned by someone else)
 - `PATCH /api/clients/{id}` partial update → 200 client
 - `DELETE /api/clients/{id}` → 204
+- `DELETE /api/clients/{id}` → 204, or 409 `client_has_projects`
+- `GET /api/projects` (bearer, archived excluded unless `?include_archived=true`)
+- `POST /api/projects` `{name, client_id, project_type, currency, status?, description?, notes?, budget?, hourly_rate?, fixed_price?, recurring_amount?, recurring_billing_period?, start_date?, due_date?}` → 201 project (money in integer minor units, dates `YYYY-MM-DD`)
+- `GET /api/projects/{id}` → 200 project with `client_name`
+- `PATCH /api/projects/{id}` partial update → 200 project
+- `POST /api/projects/{id}/archive` → 200 archived project (idempotent)
+- `POST /api/projects/{id}/unarchive` → 200 project
+- `DELETE /api/projects/{id}` → 204
 - errors always look like `{error: {code, message}}`. no stack traces leave the server.
 
 ## layout
@@ -92,11 +100,11 @@ cd frontend; npm run build             # typecheck + production build
 ```text
 backend/app/    config, errors, db (migrations), database (engine),
                 models, schemas, security, deps, routers/*, migrations/*
-backend/tests/  health, auth, clients, migrations
+backend/tests/  health, auth, clients, projects, migrations
 frontend/src/   app/ (shell, router)  features/auth  features/dashboard
-                features/clients  features/about
+                features/clients  features/projects  features/about
                 components/ (loading/empty/error/progress primitives)
-                lib/ (typed api client, validation)  styles/
+                lib/ (typed api client, validation, money)  styles/
 ```
 
 ## decisions worth knowing

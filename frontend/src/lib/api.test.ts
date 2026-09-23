@@ -63,4 +63,53 @@ describe("api client", () => {
     await expect(api.clients.create({ name: "Acme" })).resolves.toEqual(created);
     expect(fetchMock.mock.calls[0][1].method).toBe("POST");
   });
+
+  it("lists projects without archived by default", async () => {
+    const fetchMock = vi.fn().mockResolvedValue(jsonResponse([]));
+    vi.stubGlobal("fetch", fetchMock);
+    await api.projects.list();
+    expect(fetchMock.mock.calls[0][0]).toBe("/api/projects");
+  });
+
+  it("lists projects with include_archived param", async () => {
+    const fetchMock = vi.fn().mockResolvedValue(jsonResponse([]));
+    vi.stubGlobal("fetch", fetchMock);
+    await api.projects.list(true);
+    expect(fetchMock.mock.calls[0][0]).toBe("/api/projects?include_archived=true");
+  });
+
+  it("creates, updates, archives, unarchives and deletes projects", async () => {
+    const project = { id: 1, name: "Site" };
+    const fetchMock = vi.fn().mockResolvedValue(jsonResponse(project, 201));
+    vi.stubGlobal("fetch", fetchMock);
+    await expect(
+      api.projects.create({
+        name: "Site",
+        client_id: 2,
+        project_type: "fixed_price",
+        status: "active",
+        currency: "USD",
+      }),
+    ).resolves.toEqual(project);
+    expect(fetchMock.mock.calls[0][0]).toBe("/api/projects");
+    expect(fetchMock.mock.calls[0][1].method).toBe("POST");
+
+    fetchMock.mockResolvedValue(jsonResponse(project));
+    await api.projects.get(1);
+    expect(fetchMock.mock.calls[1][0]).toBe("/api/projects/1");
+
+    await api.projects.update(1, { name: "New" });
+    expect(fetchMock.mock.calls[2][1].method).toBe("PATCH");
+
+    await api.projects.archive(1);
+    expect(fetchMock.mock.calls[3][0]).toBe("/api/projects/1/archive");
+    expect(fetchMock.mock.calls[3][1].method).toBe("POST");
+
+    await api.projects.unarchive(1);
+    expect(fetchMock.mock.calls[4][0]).toBe("/api/projects/1/unarchive");
+
+    fetchMock.mockResolvedValue({ ok: true, status: 204 });
+    await expect(api.projects.remove(1)).resolves.toBeUndefined();
+    expect(fetchMock.mock.calls[5][1].method).toBe("DELETE");
+  });
 });

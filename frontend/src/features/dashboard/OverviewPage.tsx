@@ -29,7 +29,7 @@ export function OverviewPage() {
       ) : (
         <EmptyState
           title="nothing here yet"
-          body="your clients live here now. projects arrive in phase 2."
+          body="your clients and projects live here now."
         />
       )}
     </div>

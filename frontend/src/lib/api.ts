@@ -37,6 +37,57 @@ export interface Client {
   notes: string | null;
   created_at: string;
   updated_at: string;
+  projects?: ClientProject[];
+}
+
+export interface ClientProject {
+  id: number;
+  name: string;
+  status: ProjectStatus;
+  archived_at: string | null;
+}
+
+export type ProjectType = "fixed_price" | "hourly" | "retainer";
+export type ProjectStatus = "active" | "on_hold" | "completed";
+export type ProjectCurrency = "USD" | "GBP" | "INR";
+
+export interface Project {
+  id: number;
+  name: string;
+  description: string | null;
+  notes: string | null;
+  project_type: ProjectType;
+  status: ProjectStatus;
+  currency: ProjectCurrency;
+  budget: number | null;
+  hourly_rate: number | null;
+  fixed_price: number | null;
+  recurring_amount: number | null;
+  recurring_billing_period: string | null;
+  start_date: string | null;
+  due_date: string | null;
+  archived_at: string | null;
+  created_at: string;
+  updated_at: string;
+  client_id: number;
+  client_name: string;
+}
+
+export interface ProjectInput {
+  name: string;
+  client_id: number;
+  description?: string;
+  notes?: string;
+  project_type: ProjectType;
+  status: ProjectStatus;
+  currency: ProjectCurrency;
+  budget?: number | null;
+  hourly_rate?: number | null;
+  fixed_price?: number | null;
+  recurring_amount?: number | null;
+  recurring_billing_period?: string | null;
+  start_date?: string | null;
+  due_date?: string | null;
 }
 
 export interface ClientInput {
@@ -107,5 +158,25 @@ export const api = {
       apiFetch<Client>(`/api/clients/${id}`, { method: "PATCH", body: JSON.stringify(input) }),
     remove: (id: number) =>
       apiFetch<void>(`/api/clients/${id}`, { method: "DELETE" }),
+  },
+  projects: {
+    list: (includeArchived = false) =>
+      apiFetch<Project[]>(
+        includeArchived ? "/api/projects?include_archived=true" : "/api/projects",
+      ),
+    get: (id: number) => apiFetch<Project>(`/api/projects/${id}`),
+    create: (input: ProjectInput) =>
+      apiFetch<Project>("/api/projects", { method: "POST", body: JSON.stringify(input) }),
+    update: (id: number, input: Partial<ProjectInput>) =>
+      apiFetch<Project>(`/api/projects/${id}`, {
+        method: "PATCH",
+        body: JSON.stringify(input),
+      }),
+    archive: (id: number) =>
+      apiFetch<Project>(`/api/projects/${id}/archive`, { method: "POST" }),
+    unarchive: (id: number) =>
+      apiFetch<Project>(`/api/projects/${id}/unarchive`, { method: "POST" }),
+    remove: (id: number) =>
+      apiFetch<void>(`/api/projects/${id}`, { method: "DELETE" }),
   },
 };

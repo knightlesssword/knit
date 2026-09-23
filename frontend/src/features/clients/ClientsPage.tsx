@@ -75,7 +75,7 @@ export function ClientsPage() {
       ) : clients.length === 0 ? (
         <EmptyState
           title="no clients yet"
-          body="create your first client below. projects arrive in phase 2."
+          body="create your first client below. then add a project from the projects page."
         />
       ) : (
         <ul>

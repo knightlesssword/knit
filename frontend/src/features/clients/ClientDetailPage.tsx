@@ -1,5 +1,5 @@
 import { FormEvent, useEffect, useState } from "react";
-import { useNavigate, useParams } from "react-router-dom";
+import { Link, useNavigate, useParams } from "react-router-dom";
 import { ApiError, Client, api } from "../../lib/api";
 import { validateName, validateOptionalEmail } from "../../lib/validation";
 import { EmptyState, ErrorState, Loading } from "../../components/states";
@@ -194,7 +194,21 @@ export function ClientDetailPage() {
       </section>
 
       <hr className="rule" />
-      <EmptyState title="no projects yet" body="projects arrive in phase 2." />
+      <section aria-labelledby="client-projects">
+        <h2 id="client-projects">projects</h2>
+        {!client?.projects || client.projects.length === 0 ? (
+          <EmptyState title="no projects yet" body="create one from the projects page." />
+        ) : (
+          <ul>
+            {client.projects.map((p) => (
+              <li key={p.id}>
+                <Link to={`/projects/${p.id}`}>{p.name}</Link>
+                <span className="meta"> — {p.status.replace("_", " ")}</span>
+              </li>
+            ))}
+          </ul>
+        )}
+      </section>
     </div>
   );
 }

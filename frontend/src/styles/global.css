@@ -6,6 +6,7 @@
   --ink: #111;
   --ink-soft: #444;
   --muted: #767676;
+  --danger: #b3261e;
   --line: #e4e4e4;
   --paper: #fff;
   --wash: #f7f7f7;
@@ -98,7 +99,7 @@ input {
 }
 
 input[aria-invalid="true"] {
-  border-color: var(--ink);
+  border-color: var(--danger);
   border-width: 2px;
 }
 
@@ -109,12 +110,12 @@ input[aria-invalid="true"] {
 .field-error {
   font-size: 0.875rem;
   margin-top: var(--space-1);
-  color: var(--ink);
+  color: var(--danger);
 }
 
 .form-error {
-  border-top: 1px solid var(--line);
-  border-bottom: 1px solid var(--line);
+  border-top: 1px solid var(--danger);
+  border-bottom: 1px solid var(--danger);
   padding: var(--space-3) 0;
   margin-bottom: var(--space-4);
 }
@@ -139,7 +140,7 @@ button:disabled {
   overflow: hidden;
   background: transparent;
   color: var(--ink);
-  border: 2px solid var(--ink);
+  border: none;
   transition:
     transform 160ms ease,
     box-shadow 160ms ease;
@@ -158,7 +159,7 @@ button:disabled {
 .btn-primary .btn-text {
   position: relative;
   z-index: 1;
-  font-weight: 600;
+  font-weight: 400;
   letter-spacing: 0.04em;
   color: #fff;
   mix-blend-mode: difference;

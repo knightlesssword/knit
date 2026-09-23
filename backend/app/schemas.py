@@ -2,7 +2,8 @@
 from __future__ import annotations
 
 import re
-from typing import Annotated
+from datetime import date
+from typing import Annotated, Literal
 
 from pydantic import BaseModel, Field, field_validator
 
@@ -132,6 +133,13 @@ class ClientUpdate(BaseModel):
         return _optional_email(v)
 
 
+class ClientProjectOut(BaseModel):
+    id: int
+    name: str
+    status: str
+    archived_at: str | None
+
+
 class ClientOut(BaseModel):
     id: int
     name: str
@@ -139,5 +147,97 @@ class ClientOut(BaseModel):
     email: str | None
     phone: str | None
     notes: str | None
+    created_at: str
+    updated_at: str
+    projects: list[ClientProjectOut] = Field(default_factory=list)
+
+
+ProjectType = Literal["fixed_price", "hourly", "retainer"]
+ProjectStatus = Literal["active", "on_hold", "completed"]
+Currency = Literal["USD", "GBP", "INR"]
+
+Money = Annotated[int | None, Field(default=None, ge=0)]
+
+
+def _optional_text(value: str | None) -> str | None:
+    if value is None:
+        return None
+    value = value.strip()
+    return value or None
+
+
+class ProjectCreate(BaseModel):
+    name: Annotated[str, Field(min_length=1, max_length=120)]
+    client_id: Annotated[int, Field(gt=0)]
+    project_type: ProjectType
+    status: ProjectStatus = "active"
+    currency: Currency
+    description: Annotated[str | None, Field(default=None, max_length=5000)]
+    notes: Annotated[str | None, Field(default=None, max_length=5000)]
+    budget: Money = None
+    hourly_rate: Money = None
+    fixed_price: Money = None
+    recurring_amount: Money = None
+    recurring_billing_period: Annotated[str | None, Field(default=None, max_length=40)]
+    start_date: date | None = None
+    due_date: date | None = None
+
+    @field_validator("name")
+    @classmethod
+    def clean_name(cls, v: str) -> str:
+        return _require_name(v)
+
+    @field_validator("description", "notes", "recurring_billing_period")
+    @classmethod
+    def clean_text(cls, v: str | None) -> str | None:
+        return _optional_text(v)
+
+
+class ProjectUpdate(BaseModel):
+    name: Annotated[str | None, Field(default=None, max_length=120)]
+    client_id: Annotated[int | None, Field(default=None, gt=0)]
+    project_type: ProjectType | None = None
+    status: ProjectStatus | None = None
+    currency: Currency | None = None
+    description: Annotated[str | None, Field(default=None, max_length=5000)]
+    notes: Annotated[str | None, Field(default=None, max_length=5000)]
+    budget: Money = None
+    hourly_rate: Money = None
+    fixed_price: Money = None
+    recurring_amount: Money = None
+    recurring_billing_period: Annotated[str | None, Field(default=None, max_length=40)]
+    start_date: date | None = None
+    due_date: date | None = None
+
+    @field_validator("name")
+    @classmethod
+    def clean_name(cls, v: str | None) -> str | None:
+        return _optional_name(v)
+
+    @field_validator("description", "notes", "recurring_billing_period")
+    @classmethod
+    def clean_text(cls, v: str | None) -> str | None:
+        return _optional_text(v)
+
+
+class ProjectOut(BaseModel):
+    id: int
+    user_id: int
+    client_id: int
+    client_name: str
+    name: str
+    description: str | None
+    notes: str | None
+    project_type: str
+    status: str
+    currency: str
+    budget: int | None
+    hourly_rate: int | None
+    fixed_price: int | None
+    recurring_amount: int | None
+    recurring_billing_period: str | None
+    start_date: date | None
+    due_date: date | None
+    archived_at: str | None
     created_at: str
     updated_at: str

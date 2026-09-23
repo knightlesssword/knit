@@ -31,3 +31,31 @@ class Client(Base):
     notes: Mapped[str | None] = mapped_column(Text, nullable=True)
     created_at: Mapped[str] = mapped_column(String(32), nullable=False)
     updated_at: Mapped[str] = mapped_column(String(32), nullable=False)
+
+
+class Project(Base):
+    __tablename__ = "projects"
+
+    id: Mapped[int] = mapped_column(primary_key=True, autoincrement=True)
+    user_id: Mapped[int] = mapped_column(ForeignKey("users.id", ondelete="CASCADE"), index=True)
+    client_id: Mapped[int] = mapped_column(
+        ForeignKey("clients.id", ondelete="RESTRICT"), index=True
+    )
+    name: Mapped[str] = mapped_column(String(120), nullable=False)
+    description: Mapped[str | None] = mapped_column(Text, nullable=True)
+    notes: Mapped[str | None] = mapped_column(Text, nullable=True)
+    project_type: Mapped[str] = mapped_column(String(20), nullable=False)
+    status: Mapped[str] = mapped_column(String(20), nullable=False, default="active")
+    currency: Mapped[str] = mapped_column(String(3), nullable=False)
+    # Money in integer minor units, never float. All optional in v1.
+    budget: Mapped[int | None] = mapped_column(nullable=True)
+    hourly_rate: Mapped[int | None] = mapped_column(nullable=True)
+    fixed_price: Mapped[int | None] = mapped_column(nullable=True)
+    recurring_amount: Mapped[int | None] = mapped_column(nullable=True)
+    recurring_billing_period: Mapped[str | None] = mapped_column(String(40), nullable=True)
+    # Date-only values as YYYY-MM-DD text, never timestamps.
+    start_date: Mapped[str | None] = mapped_column(String(10), nullable=True)
+    due_date: Mapped[str | None] = mapped_column(String(10), nullable=True)
+    archived_at: Mapped[str | None] = mapped_column(String(32), nullable=True)
+    created_at: Mapped[str] = mapped_column(String(32), nullable=False)
+    updated_at: Mapped[str] = mapped_column(String(32), nullable=False)

@@ -14,6 +14,7 @@ from .errors import register_error_handlers
 from .routers.auth import router as auth_router
 from .routers.clients import router as clients_router
 from .routers.health import router as health_router
+from .routers.projects import router as projects_router
 
 logging.basicConfig(
     level=logging.INFO,
@@ -47,6 +48,7 @@ def create_app() -> FastAPI:
     app.include_router(health_router, prefix="/api")
     app.include_router(auth_router, prefix="/api")
     app.include_router(clients_router, prefix="/api")
+    app.include_router(projects_router, prefix="/api")
 
     return app
 

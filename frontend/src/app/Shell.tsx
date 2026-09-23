@@ -10,6 +10,7 @@ const NAV = [
   { to: "/timesheet", label: "timesheet" },
   { to: "/invoices", label: "invoices" },
   { to: "/settings", label: "settings" },
+  { to: "/about", label: "about" },
 ];
 
 export function Shell() {

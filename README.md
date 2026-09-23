@@ -7,15 +7,15 @@ and data.
 specs: `project.md` (product), `agents.md` (engineering rules). both are
 authoritative — read them before changing anything.
 
-## status: phase 2 projects
+## status: phase 3 milestones and tasks
 
-working: backend shell, sqlite + migrations (users, clients, projects), auth,
-per-user client crud, per-user project crud with archive, frontend shell with
-auth pages, clients list/detail, projects list/detail/overview, about page,
-pwa shell, backend + frontend test suites.
+working: backend shell, sqlite + migrations (users, clients, projects,
+milestones, tasks), auth, per-user client/project crud with archive, milestones
+with derived counts, tasks with list + kanban, server-side progress,
+per-user task views, about page, pwa shell, backend + frontend test suites.
 
-not yet built: tasks/milestones (phase 3), time (phase 4), money/invoices
-(phase 5), files/comments (phase 6), command palette + search (phase 7).
+not yet built: time (phase 4), money/invoices (phase 5), files/comments
+(phase 6), command palette + search (phase 7).
 
 ## prerequisites
 
@@ -93,6 +93,12 @@ cd frontend; npm run build             # typecheck + production build
 - `POST /api/projects/{id}/archive` → 200 archived project (idempotent)
 - `POST /api/projects/{id}/unarchive` → 200 project
 - `DELETE /api/projects/{id}` → 204
+- `DELETE /api/projects/{id}` → 204, or 409 `project_has_work`
+- `GET /api/projects/{id}/milestones`, `POST` → 201 milestone
+- `GET/PATCH/DELETE /api/milestones/{id}` (delete keeps tasks, unassigns them)
+- `GET /api/projects/{id}/tasks`, `POST` → 201 task (milestone must belong to the project)
+- `GET /api/tasks` (all own tasks), `GET/PATCH/DELETE /api/tasks/{id}` (status drives `completed_at` server-side)
+- project responses carry `progress: {total, done} | null` (null when no tasks)
 - errors always look like `{error: {code, message}}`. no stack traces leave the server.
 
 ## layout

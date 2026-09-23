@@ -2,17 +2,27 @@ import { FormEvent, useEffect, useState } from "react";
 import { Link, useNavigate, useParams } from "react-router-dom";
 import {
   ApiError,
+  Milestone,
   Project,
   ProjectCurrency,
   ProjectStatus,
   ProjectType,
+  Task,
+  TaskPriority,
+  TaskStatus,
   api,
 } from "../../lib/api";
+import {
+  formatDuration,
+  minutesToSeconds,
+  secondsToMinutes,
+} from "../../lib/duration";
 import { formatMoney, majorToMinor, minorToMajor } from "../../lib/money";
 import { validateName } from "../../lib/validation";
 import { EmptyState, ErrorState, Loading, ProgressBar } from "../../components/states";
 
 type Status = "loading" | "ready" | "missing" | "error";
+type WorkStatus = "loading" | "ready" | "error";
 
 function moneySummary(project: Project): string {
   if (project.project_type === "fixed_price") {
@@ -30,6 +40,16 @@ function moneySummary(project: Project): string {
     : "no recurring amount set";
 }
 
+function taskStatusLabel(status: TaskStatus): string {
+  return status === "todo" ? "to do" : status === "in_progress" ? "in progress" : "done";
+}
+
+function advanceLabel(status: TaskStatus): string | null {
+  if (status === "todo") return "start";
+  if (status === "in_progress") return "mark done";
+  return null;
+}
+
 export function ProjectDetailPage() {
   const { id } = useParams<{ id: string }>();
   const navigate = useNavigate();
@@ -38,6 +58,11 @@ export function ProjectDetailPage() {
   const [status, setStatus] = useState<Status>("loading");
   const [project, setProject] = useState<Project | null>(null);
   const [loadError, setLoadError] = useState<string | null>(null);
+
+  const [workStatus, setWorkStatus] = useState<WorkStatus>("loading");
+  const [workError, setWorkError] = useState<string | null>(null);
+  const [milestones, setMilestones] = useState<Milestone[]>([]);
+  const [tasks, setTasks] = useState<Task[]>([]);
 
   const [name, setName] = useState("");
   const [projectType, setProjectType] = useState<ProjectType>("fixed_price");
@@ -89,7 +114,37 @@ export function ProjectDetailPage() {
       });
   };
 
+  const loadWork = () => {
+    if (!Number.isInteger(projectId)) return;
+    setWorkStatus("loading");
+    Promise.all([api.milestones.list(projectId), api.tasks.listByProject(projectId)])
+      .then(([milestoneList, taskList]) => {
+        setMilestones(milestoneList);
+        setTasks(taskList);
+        setWorkStatus("ready");
+      })
+      .catch((err: unknown) => {
+        setWorkError(err instanceof ApiError ? err.message : "couldn't load work");
+        setWorkStatus("error");
+      });
+  };
+
+  const refreshProject = () => {
+    api.projects
+      .get(projectId)
+      .then(setProject)
+      .catch(() => {
+        /* progress refresh is best-effort; work lists already updated */
+      });
+  };
+
+  const refreshWork = () => {
+    loadWork();
+    refreshProject();
+  };
+
   useEffect(load, [projectId]); // eslint-disable-line react-hooks/exhaustive-deps
+  useEffect(loadWork, [projectId]); // eslint-disable-line react-hooks/exhaustive-deps
 
   const save = async (e: FormEvent) => {
     e.preventDefault();
@@ -165,6 +220,8 @@ export function ProjectDetailPage() {
     return <ErrorState message={loadError ?? "couldn't load project"} onRetry={load} />;
   if (!project) return <Loading label="loading project" />;
 
+  const progress = project.progress;
+
   return (
     <div>
       <h1>{project.name}</h1>
@@ -178,8 +235,18 @@ export function ProjectDetailPage() {
 
       <section aria-labelledby="progress">
         <h2 id="progress">progress</h2>
-        <ProgressBar value={null} />
-        <p className="meta">task progress arrives in phase 3.</p>
+        {progress === null ? (
+          <ProgressBar value={null} />
+        ) : (
+          <>
+            <ProgressBar
+              value={progress.total > 0 ? progress.done / progress.total : null}
+            />
+            <p className="meta">
+              {progress.done} done / {progress.total - progress.done} remaining
+            </p>
+          </>
+        )}
       </section>
 
       <hr className="rule" />
@@ -187,6 +254,28 @@ export function ProjectDetailPage() {
         <h2 id="money">money</h2>
         <p className="meta">{moneySummary(project)}</p>
       </section>
+
+      <hr className="rule" />
+      {workStatus === "loading" ? (
+        <Loading label="loading work" />
+      ) : workStatus === "error" ? (
+        <ErrorState message={workError ?? "couldn't load work"} onRetry={loadWork} />
+      ) : (
+        <>
+          <MilestonesSection
+            projectId={projectId}
+            milestones={milestones}
+            onChanged={refreshWork}
+          />
+          <hr className="rule" />
+          <TasksSection
+            projectId={projectId}
+            milestones={milestones}
+            tasks={tasks}
+            onChanged={refreshWork}
+          />
+        </>
+      )}
 
       <hr className="rule" />
       <section aria-labelledby="edit-project">
@@ -352,13 +441,618 @@ export function ProjectDetailPage() {
       </section>
 
       <hr className="rule" />
-      <EmptyState title="tasks" body="tasks arrive in phase 3." />
-      <hr className="rule" />
-      <EmptyState title="milestones" body="milestones arrive in phase 3." />
-      <hr className="rule" />
       <EmptyState title="time" body="time tracking arrives in phase 4." />
       <hr className="rule" />
       <EmptyState title="files" body="project files arrive in a later phase." />
     </div>
+  );
+}
+
+function MilestonesSection({
+  projectId,
+  milestones,
+  onChanged,
+}: {
+  projectId: number;
+  milestones: Milestone[];
+  onChanged: () => void;
+}) {
+  const [name, setName] = useState("");
+  const [dueDate, setDueDate] = useState("");
+  const [nameError, setNameError] = useState<string | null>(null);
+  const [formError, setFormError] = useState<string | null>(null);
+  const [creating, setCreating] = useState(false);
+  const [confirmingDelete, setConfirmingDelete] = useState<number | null>(null);
+  const [busyIds, setBusyIds] = useState<Set<number>>(new Set());
+
+  const setBusy = (id: number, busy: boolean) => {
+    setBusyIds((prev) => {
+      const next = new Set(prev);
+      if (busy) next.add(id);
+      else next.delete(id);
+      return next;
+    });
+  };
+
+  const create = async (e: FormEvent) => {
+    e.preventDefault();
+    const error = validateName(name);
+    setNameError(error);
+    if (error) return; // preserve input on error
+    setCreating(true);
+    setFormError(null);
+    try {
+      await api.milestones.create(projectId, {
+        name: name.trim(),
+        due_date: dueDate || null,
+      });
+      setName("");
+      setDueDate("");
+      onChanged();
+    } catch (err) {
+      setFormError(err instanceof ApiError ? err.message : "couldn't create milestone");
+    } finally {
+      setCreating(false);
+    }
+  };
+
+  const toggleComplete = async (milestone: Milestone) => {
+    setBusy(milestone.id, true);
+    setFormError(null);
+    try {
+      await api.milestones.update(milestone.id, {
+        status: milestone.status === "completed" ? "open" : "completed",
+      });
+      onChanged();
+    } catch (err) {
+      setFormError(err instanceof ApiError ? err.message : "couldn't update milestone");
+    } finally {
+      setBusy(milestone.id, false);
+    }
+  };
+
+  const remove = async (id: number) => {
+    setBusy(id, true);
+    try {
+      await api.milestones.remove(id);
+      setConfirmingDelete(null);
+      onChanged();
+    } catch (err) {
+      setFormError(err instanceof ApiError ? err.message : "couldn't delete milestone");
+    } finally {
+      setBusy(id, false);
+    }
+  };
+
+  return (
+    <section aria-labelledby="milestones">
+      <h2 id="milestones">milestones</h2>
+      {formError ? (
+        <p className="form-error" role="alert">
+          {formError}
+        </p>
+      ) : null}
+      {milestones.length === 0 ? (
+        <p className="meta">no milestones yet.</p>
+      ) : (
+        <ul>
+          {milestones.map((m) => {
+            const remaining = m.task_total - m.task_done;
+            const busy = busyIds.has(m.id);
+            return (
+              <li key={m.id}>
+                {m.name}
+                <span className="meta">
+                  {" — "}
+                  {m.status === "completed" ? "completed" : "open"}
+                  {m.due_date ? ` · due ${m.due_date}` : " · no due date"}
+                  {` · ${m.task_done} done / ${remaining} remaining`}
+                </span>
+                <br />
+                <ProgressBar value={m.task_total > 0 ? m.task_done / m.task_total : null} />
+                <button
+                  type="button"
+                  className="secondary"
+                  disabled={busy}
+                  onClick={() => toggleComplete(m)}
+                >
+                  {busy
+                    ? "working…"
+                    : m.status === "completed"
+                      ? "reopen"
+                      : "mark complete"}
+                </button>{" "}
+                {confirmingDelete === m.id ? (
+                  <span>
+                    <span className="meta">delete “{m.name}”? its tasks are kept. </span>
+                    <button type="button" disabled={busy} onClick={() => remove(m.id)}>
+                      {busy ? "deleting…" : "yes, delete"}
+                    </button>{" "}
+                    <button
+                      type="button"
+                      className="secondary"
+                      disabled={busy}
+                      onClick={() => setConfirmingDelete(null)}
+                    >
+                      keep
+                    </button>
+                  </span>
+                ) : (
+                  <button
+                    type="button"
+                    className="secondary"
+                    onClick={() => setConfirmingDelete(m.id)}
+                  >
+                    delete
+                  </button>
+                )}
+              </li>
+            );
+          })}
+        </ul>
+      )}
+      <h3>new milestone</h3>
+      <form onSubmit={create} noValidate>
+        <div className="field">
+          <label htmlFor="milestone-name">name</label>
+          <input
+            id="milestone-name"
+            type="text"
+            value={name}
+            onChange={(e) => setName(e.target.value)}
+            aria-invalid={Boolean(nameError)}
+          />
+          {nameError ? <p className="field-error">{nameError}</p> : null}
+        </div>
+        <div className="field">
+          <label htmlFor="milestone-due">due date (optional)</label>
+          <input
+            id="milestone-due"
+            type="date"
+            value={dueDate}
+            onChange={(e) => setDueDate(e.target.value)}
+          />
+        </div>
+        <button type="submit" disabled={creating}>
+          {creating ? "creating…" : "create milestone"}
+        </button>
+      </form>
+    </section>
+  );
+}
+
+function TasksSection({
+  projectId,
+  milestones,
+  tasks,
+  onChanged,
+}: {
+  projectId: number;
+  milestones: Milestone[];
+  tasks: Task[];
+  onChanged: () => void;
+}) {
+  const [title, setTitle] = useState("");
+  const [milestoneId, setMilestoneId] = useState("");
+  const [priority, setPriority] = useState<TaskPriority>("medium");
+  const [dueDate, setDueDate] = useState("");
+  const [estimateMinutes, setEstimateMinutes] = useState("");
+  const [fieldErrors, setFieldErrors] = useState<{ title?: string; estimate?: string }>({});
+  const [formError, setFormError] = useState<string | null>(null);
+  const [creating, setCreating] = useState(false);
+  const [busyIds, setBusyIds] = useState<Set<number>>(new Set());
+  const [editingId, setEditingId] = useState<number | null>(null);
+  const [confirmingDelete, setConfirmingDelete] = useState<number | null>(null);
+
+  const setBusy = (id: number, busy: boolean) => {
+    setBusyIds((prev) => {
+      const next = new Set(prev);
+      if (busy) next.add(id);
+      else next.delete(id);
+      return next;
+    });
+  };
+
+  const milestoneName = (task: Task): string => {
+    const found = milestones.find((m) => m.id === task.milestone_id);
+    return found ? found.name : (task.milestone_name ?? "no milestone");
+  };
+
+  const create = async (e: FormEvent) => {
+    e.preventDefault();
+    const errors: { title?: string; estimate?: string } = {
+      title: validateName(title) ?? undefined,
+    };
+    let estimate: number | null = null;
+    if (estimateMinutes.trim()) {
+      estimate = minutesToSeconds(estimateMinutes);
+      if (estimate === null) errors.estimate = "enter whole minutes like 90";
+    }
+    setFieldErrors(errors);
+    if (errors.title || errors.estimate) return; // preserve input on error
+    setCreating(true);
+    setFormError(null);
+    try {
+      await api.tasks.create(projectId, {
+        title: title.trim(),
+        milestone_id: milestoneId ? Number(milestoneId) : null,
+        priority,
+        due_date: dueDate || null,
+        estimated_duration_seconds: estimate,
+      });
+      setTitle("");
+      setMilestoneId("");
+      setPriority("medium");
+      setDueDate("");
+      setEstimateMinutes("");
+      setFieldErrors({});
+      onChanged();
+    } catch (err) {
+      setFormError(err instanceof ApiError ? err.message : "couldn't create task");
+    } finally {
+      setCreating(false);
+    }
+  };
+
+  const move = async (task: Task, next: TaskStatus) => {
+    setBusy(task.id, true);
+    setFormError(null);
+    try {
+      await api.tasks.update(task.id, { status: next });
+      onChanged();
+    } catch (err) {
+      setFormError(err instanceof ApiError ? err.message : "couldn't move task");
+    } finally {
+      setBusy(task.id, false);
+    }
+  };
+
+  const remove = async (id: number) => {
+    setBusy(id, true);
+    try {
+      await api.tasks.remove(id);
+      setConfirmingDelete(null);
+      onChanged();
+    } catch (err) {
+      setFormError(err instanceof ApiError ? err.message : "couldn't delete task");
+    } finally {
+      setBusy(id, false);
+    }
+  };
+
+  return (
+    <section aria-labelledby="tasks">
+      <h2 id="tasks">tasks</h2>
+      {formError ? (
+        <p className="form-error" role="alert">
+          {formError}
+        </p>
+      ) : null}
+      {tasks.length === 0 ? (
+        <p className="meta">no tasks yet.</p>
+      ) : (
+        <ul>
+          {tasks.map((task) => {
+            const busy = busyIds.has(task.id);
+            const next = advanceLabel(task.status);
+            if (editingId === task.id) {
+              return (
+                <li key={task.id}>
+                  <TaskEditor
+                    task={task}
+                    milestones={milestones}
+                    busy={busy}
+                    onCancel={() => setEditingId(null)}
+                    onSaved={() => {
+                      setEditingId(null);
+                      onChanged();
+                    }}
+                  />
+                </li>
+              );
+            }
+            return (
+              <li key={task.id}>
+                {task.title}
+                <span className="meta">
+                  {" — "}
+                  {`status ${taskStatusLabel(task.status)}`}
+                  {` · priority ${task.priority}`}
+                  {` · ${milestoneName(task)}`}
+                  {task.due_date ? ` · due ${task.due_date}` : " · no due date"}
+                  {task.estimated_duration_seconds !== null
+                    ? ` · estimate ${formatDuration(task.estimated_duration_seconds)}`
+                    : " · no estimate"}
+                </span>
+                {task.description ? <p className="meta">{task.description}</p> : null}
+                <br />
+                {task.status === "in_progress" ? (
+                  <button
+                    type="button"
+                    className="secondary"
+                    disabled={busy}
+                    onClick={() => move(task, "todo")}
+                  >
+                    {busy ? "moving…" : "move back to to do"}
+                  </button>
+                ) : null}{" "}
+                {next ? (
+                  <button
+                    type="button"
+                    className="secondary"
+                    disabled={busy}
+                    onClick={() =>
+                      move(task, task.status === "todo" ? "in_progress" : "done")
+                    }
+                  >
+                    {busy ? "moving…" : next}
+                  </button>
+                ) : (
+                  <button
+                    type="button"
+                    className="secondary"
+                    disabled={busy}
+                    onClick={() => move(task, "in_progress")}
+                  >
+                    {busy ? "moving…" : "reopen"}
+                  </button>
+                )}{" "}
+                <button
+                  type="button"
+                  className="secondary"
+                  disabled={busy}
+                  onClick={() => setEditingId(task.id)}
+                >
+                  edit
+                </button>{" "}
+                {confirmingDelete === task.id ? (
+                  <span>
+                    <span className="meta">delete “{task.title}”? cannot be undone. </span>
+                    <button type="button" disabled={busy} onClick={() => remove(task.id)}>
+                      {busy ? "deleting…" : "yes, delete"}
+                    </button>{" "}
+                    <button
+                      type="button"
+                      className="secondary"
+                      disabled={busy}
+                      onClick={() => setConfirmingDelete(null)}
+                    >
+                      keep
+                    </button>
+                  </span>
+                ) : (
+                  <button
+                    type="button"
+                    className="secondary"
+                    onClick={() => setConfirmingDelete(task.id)}
+                  >
+                    delete
+                  </button>
+                )}
+              </li>
+            );
+          })}
+        </ul>
+      )}
+      <h3>new task</h3>
+      <form onSubmit={create} noValidate>
+        <div className="field">
+          <label htmlFor="task-title">title</label>
+          <input
+            id="task-title"
+            type="text"
+            value={title}
+            onChange={(e) => setTitle(e.target.value)}
+            aria-invalid={Boolean(fieldErrors.title)}
+          />
+          {fieldErrors.title ? <p className="field-error">{fieldErrors.title}</p> : null}
+        </div>
+        <div className="field">
+          <label htmlFor="task-milestone">milestone (optional)</label>
+          <select
+            id="task-milestone"
+            value={milestoneId}
+            onChange={(e) => setMilestoneId(e.target.value)}
+          >
+            <option value="">no milestone</option>
+            {milestones.map((m) => (
+              <option key={m.id} value={m.id}>
+                {m.name}
+              </option>
+            ))}
+          </select>
+        </div>
+        <div className="field">
+          <label htmlFor="task-priority">priority</label>
+          <select
+            id="task-priority"
+            value={priority}
+            onChange={(e) => setPriority(e.target.value as TaskPriority)}
+          >
+            <option value="low">low</option>
+            <option value="medium">medium</option>
+            <option value="high">high</option>
+          </select>
+        </div>
+        <div className="field">
+          <label htmlFor="task-due">due date (optional)</label>
+          <input
+            id="task-due"
+            type="date"
+            value={dueDate}
+            onChange={(e) => setDueDate(e.target.value)}
+          />
+        </div>
+        <div className="field">
+          <label htmlFor="task-estimate">estimate in minutes (optional)</label>
+          <input
+            id="task-estimate"
+            type="number"
+            min={0}
+            step={1}
+            placeholder="90"
+            value={estimateMinutes}
+            onChange={(e) => setEstimateMinutes(e.target.value)}
+            aria-invalid={Boolean(fieldErrors.estimate)}
+          />
+          {fieldErrors.estimate ? (
+            <p className="field-error">{fieldErrors.estimate}</p>
+          ) : null}
+        </div>
+        <button type="submit" disabled={creating}>
+          {creating ? "creating…" : "create task"}
+        </button>
+      </form>
+    </section>
+  );
+}
+
+function TaskEditor({
+  task,
+  milestones,
+  busy,
+  onCancel,
+  onSaved,
+}: {
+  task: Task;
+  milestones: Milestone[];
+  busy: boolean;
+  onCancel: () => void;
+  onSaved: () => void;
+}) {
+  const [title, setTitle] = useState(task.title);
+  const [description, setDescription] = useState(task.description ?? "");
+  const [milestoneId, setMilestoneId] = useState(
+    task.milestone_id !== null ? String(task.milestone_id) : "",
+  );
+  const [priority, setPriority] = useState<TaskPriority>(task.priority);
+  const [dueDate, setDueDate] = useState(task.due_date ?? "");
+  const [estimateMinutes, setEstimateMinutes] = useState(
+    task.estimated_duration_seconds !== null
+      ? String(secondsToMinutes(task.estimated_duration_seconds))
+      : "",
+  );
+  const [fieldErrors, setFieldErrors] = useState<{ title?: string; estimate?: string }>({});
+  const [saveError, setSaveError] = useState<string | null>(null);
+  const [saving, setSaving] = useState(false);
+
+  const save = async (e: FormEvent) => {
+    e.preventDefault();
+    const errors: { title?: string; estimate?: string } = {
+      title: validateName(title) ?? undefined,
+    };
+    let estimate: number | null = null;
+    if (estimateMinutes.trim()) {
+      estimate = minutesToSeconds(estimateMinutes);
+      if (estimate === null) errors.estimate = "enter whole minutes like 90";
+    }
+    setFieldErrors(errors);
+    if (errors.title || errors.estimate) return; // preserve input on error
+    setSaving(true);
+    setSaveError(null);
+    try {
+      await api.tasks.update(task.id, {
+        title: title.trim(),
+        description: description.trim() || null,
+        milestone_id: milestoneId ? Number(milestoneId) : null,
+        priority,
+        due_date: dueDate || null,
+        estimated_duration_seconds: estimate,
+      });
+      onSaved();
+    } catch (err) {
+      setSaveError(err instanceof ApiError ? err.message : "couldn't save task");
+    } finally {
+      setSaving(false);
+    }
+  };
+
+  const prefix = `task-edit-${task.id}`;
+
+  return (
+    <form onSubmit={save} noValidate>
+      {saveError ? (
+        <p className="form-error" role="alert">
+          {saveError}
+        </p>
+      ) : null}
+      <div className="field">
+        <label htmlFor={`${prefix}-title`}>title</label>
+        <input
+          id={`${prefix}-title`}
+          type="text"
+          value={title}
+          onChange={(e) => setTitle(e.target.value)}
+          aria-invalid={Boolean(fieldErrors.title)}
+        />
+        {fieldErrors.title ? <p className="field-error">{fieldErrors.title}</p> : null}
+      </div>
+      <div className="field">
+        <label htmlFor={`${prefix}-desc`}>description (optional)</label>
+        <input
+          id={`${prefix}-desc`}
+          type="text"
+          value={description}
+          onChange={(e) => setDescription(e.target.value)}
+        />
+      </div>
+      <div className="field">
+        <label htmlFor={`${prefix}-milestone`}>milestone (optional)</label>
+        <select
+          id={`${prefix}-milestone`}
+          value={milestoneId}
+          onChange={(e) => setMilestoneId(e.target.value)}
+        >
+          <option value="">no milestone</option>
+          {milestones.map((m) => (
+            <option key={m.id} value={m.id}>
+              {m.name}
+            </option>
+          ))}
+        </select>
+      </div>
+      <div className="field">
+        <label htmlFor={`${prefix}-priority`}>priority</label>
+        <select
+          id={`${prefix}-priority`}
+          value={priority}
+          onChange={(e) => setPriority(e.target.value as TaskPriority)}
+        >
+          <option value="low">low</option>
+          <option value="medium">medium</option>
+          <option value="high">high</option>
+        </select>
+      </div>
+      <div className="field">
+        <label htmlFor={`${prefix}-due`}>due date (optional)</label>
+        <input
+          id={`${prefix}-due`}
+          type="date"
+          value={dueDate}
+          onChange={(e) => setDueDate(e.target.value)}
+        />
+      </div>
+      <div className="field">
+        <label htmlFor={`${prefix}-estimate`}>estimate in minutes (optional)</label>
+        <input
+          id={`${prefix}-estimate`}
+          type="number"
+          min={0}
+          step={1}
+          value={estimateMinutes}
+          onChange={(e) => setEstimateMinutes(e.target.value)}
+          aria-invalid={Boolean(fieldErrors.estimate)}
+        />
+        {fieldErrors.estimate ? (
+          <p className="field-error">{fieldErrors.estimate}</p>
+        ) : null}
+      </div>
+      <button type="submit" disabled={saving || busy}>
+        {saving ? "saving…" : "save task"}
+      </button>{" "}
+      <button type="button" className="secondary" onClick={onCancel} disabled={saving}>
+        cancel
+      </button>
+    </form>
   );
 }

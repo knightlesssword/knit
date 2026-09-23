@@ -71,6 +71,7 @@ export interface Project {
   updated_at: string;
   client_id: number;
   client_name: string;
+  progress: { total: number; done: number } | null;
 }
 
 export interface ProjectInput {
@@ -96,6 +97,59 @@ export interface ClientInput {
   email?: string;
   phone?: string;
   notes?: string;
+}
+
+export type MilestoneStatus = "open" | "completed";
+
+export interface Milestone {
+  id: number;
+  project_id: number;
+  name: string;
+  description: string | null;
+  due_date: string | null;
+  status: MilestoneStatus;
+  position: number;
+  task_total: number;
+  task_done: number;
+  created_at: string;
+  updated_at: string;
+}
+
+export interface MilestoneInput {
+  name: string;
+  description?: string | null;
+  due_date?: string | null;
+  status?: MilestoneStatus;
+}
+
+export type TaskStatus = "todo" | "in_progress" | "done";
+export type TaskPriority = "low" | "medium" | "high";
+
+export interface Task {
+  id: number;
+  project_id: number;
+  milestone_id: number | null;
+  title: string;
+  description: string | null;
+  status: TaskStatus;
+  priority: TaskPriority;
+  due_date: string | null;
+  estimated_duration_seconds: number | null;
+  completed_at: string | null;
+  created_at: string;
+  updated_at: string;
+  project_name: string;
+  milestone_name: string | null;
+}
+
+export interface TaskInput {
+  title: string;
+  description?: string | null;
+  milestone_id?: number | null;
+  status?: TaskStatus;
+  priority?: TaskPriority;
+  due_date?: string | null;
+  estimated_duration_seconds?: number | null;
 }
 
 const TOKEN_KEY = "knit.token";
@@ -178,5 +232,40 @@ export const api = {
       apiFetch<Project>(`/api/projects/${id}/unarchive`, { method: "POST" }),
     remove: (id: number) =>
       apiFetch<void>(`/api/projects/${id}`, { method: "DELETE" }),
+  },
+  milestones: {
+    list: (projectId: number) =>
+      apiFetch<Milestone[]>(`/api/projects/${projectId}/milestones`),
+    get: (id: number) => apiFetch<Milestone>(`/api/milestones/${id}`),
+    create: (projectId: number, input: MilestoneInput) =>
+      apiFetch<Milestone>(`/api/projects/${projectId}/milestones`, {
+        method: "POST",
+        body: JSON.stringify(input),
+      }),
+    update: (id: number, input: Partial<MilestoneInput>) =>
+      apiFetch<Milestone>(`/api/milestones/${id}`, {
+        method: "PATCH",
+        body: JSON.stringify(input),
+      }),
+    remove: (id: number) =>
+      apiFetch<void>(`/api/milestones/${id}`, { method: "DELETE" }),
+  },
+  tasks: {
+    listByProject: (projectId: number) =>
+      apiFetch<Task[]>(`/api/projects/${projectId}/tasks`),
+    listAll: () => apiFetch<Task[]>("/api/tasks"),
+    get: (id: number) => apiFetch<Task>(`/api/tasks/${id}`),
+    create: (projectId: number, input: TaskInput) =>
+      apiFetch<Task>(`/api/projects/${projectId}/tasks`, {
+        method: "POST",
+        body: JSON.stringify(input),
+      }),
+    update: (id: number, input: Partial<TaskInput>) =>
+      apiFetch<Task>(`/api/tasks/${id}`, {
+        method: "PATCH",
+        body: JSON.stringify(input),
+      }),
+    remove: (id: number) =>
+      apiFetch<void>(`/api/tasks/${id}`, { method: "DELETE" }),
   },
 };

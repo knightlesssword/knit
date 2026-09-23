@@ -220,6 +220,11 @@ class ProjectUpdate(BaseModel):
         return _optional_text(v)
 
 
+class ProjectProgress(BaseModel):
+    total: int
+    done: int
+
+
 class ProjectOut(BaseModel):
     id: int
     user_id: int
@@ -241,3 +246,119 @@ class ProjectOut(BaseModel):
     archived_at: str | None
     created_at: str
     updated_at: str
+    # Null when the project has zero tasks; otherwise exact task counts.
+    progress: ProjectProgress | None = None
+
+
+MilestoneStatus = Literal["open", "completed"]
+TaskStatus = Literal["todo", "in_progress", "done"]
+TaskPriority = Literal["low", "medium", "high"]
+
+
+class MilestoneCreate(BaseModel):
+    name: Annotated[str, Field(min_length=1, max_length=120)]
+    description: Annotated[str | None, Field(default=None, max_length=5000)]
+    due_date: date | None = None
+    status: MilestoneStatus = "open"
+    position: Annotated[int, Field(default=0, ge=0)] = 0
+
+    @field_validator("name")
+    @classmethod
+    def clean_name(cls, v: str) -> str:
+        return _require_name(v)
+
+    @field_validator("description")
+    @classmethod
+    def clean_text(cls, v: str | None) -> str | None:
+        return _optional_text(v)
+
+
+class MilestoneUpdate(BaseModel):
+    name: Annotated[str | None, Field(default=None, max_length=120)]
+    description: Annotated[str | None, Field(default=None, max_length=5000)]
+    due_date: date | None = None
+    status: MilestoneStatus | None = None
+    position: Annotated[int | None, Field(default=None, ge=0)] = None
+
+    @field_validator("name")
+    @classmethod
+    def clean_name(cls, v: str | None) -> str | None:
+        return _optional_name(v)
+
+    @field_validator("description")
+    @classmethod
+    def clean_text(cls, v: str | None) -> str | None:
+        return _optional_text(v)
+
+
+class MilestoneOut(BaseModel):
+    id: int
+    user_id: int
+    project_id: int
+    name: str
+    description: str | None
+    due_date: date | None
+    status: str
+    position: int
+    created_at: str
+    updated_at: str
+    task_total: int
+    task_done: int
+
+
+class TaskCreate(BaseModel):
+    title: Annotated[str, Field(min_length=1, max_length=200)]
+    description: Annotated[str | None, Field(default=None, max_length=5000)]
+    milestone_id: Annotated[int | None, Field(default=None, gt=0)] = None
+    status: TaskStatus = "todo"
+    priority: TaskPriority = "medium"
+    due_date: date | None = None
+    estimated_duration_seconds: Annotated[int | None, Field(default=None, ge=0)] = None
+
+    @field_validator("title")
+    @classmethod
+    def clean_title(cls, v: str) -> str:
+        return _require_name(v)
+
+    @field_validator("description")
+    @classmethod
+    def clean_text(cls, v: str | None) -> str | None:
+        return _optional_text(v)
+
+
+class TaskUpdate(BaseModel):
+    title: Annotated[str | None, Field(default=None, max_length=200)]
+    description: Annotated[str | None, Field(default=None, max_length=5000)]
+    milestone_id: Annotated[int | None, Field(default=None, gt=0)] = None
+    status: TaskStatus | None = None
+    priority: TaskPriority | None = None
+    due_date: date | None = None
+    estimated_duration_seconds: Annotated[int | None, Field(default=None, ge=0)] = None
+
+    @field_validator("title")
+    @classmethod
+    def clean_title(cls, v: str | None) -> str | None:
+        return _optional_name(v)
+
+    @field_validator("description")
+    @classmethod
+    def clean_text(cls, v: str | None) -> str | None:
+        return _optional_text(v)
+
+
+class TaskOut(BaseModel):
+    id: int
+    user_id: int
+    project_id: int
+    milestone_id: int | None
+    title: str
+    description: str | None
+    status: str
+    priority: str
+    due_date: date | None
+    estimated_duration_seconds: int | None
+    completed_at: str | None
+    created_at: str
+    updated_at: str
+    project_name: str
+    milestone_name: str | None

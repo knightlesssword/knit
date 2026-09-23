@@ -15,15 +15,17 @@ def _tables(conn: sqlite3.Connection) -> set[str]:
 
 def test_migrate_applies_all_and_is_idempotent(tmp_path):
     db_path = str(tmp_path / "m.db")
-    assert migrate(db_path) == [1, 2, 3]
+    assert migrate(db_path) == [1, 2, 3, 4]
     assert migrate(db_path) == []
     conn = get_connection(db_path)
     try:
         assert "users" in _tables(conn)
         assert "clients" in _tables(conn)
         assert "projects" in _tables(conn)
+        assert "milestones" in _tables(conn)
+        assert "tasks" in _tables(conn)
         assert "schema_migrations" in _tables(conn)
-        assert applied_versions(conn) == {1, 2, 3}
+        assert applied_versions(conn) == {1, 2, 3, 4}
     finally:
         conn.close()
 
@@ -47,9 +49,21 @@ def test_models_match_migrated_schema(tmp_path):
         user_cols = {r[1] for r in conn.execute("PRAGMA table_info(users)").fetchall()}
         client_cols = {r[1] for r in conn.execute("PRAGMA table_info(clients)").fetchall()}
         project_cols = {r[1] for r in conn.execute("PRAGMA table_info(projects)").fetchall()}
+        milestone_cols = {
+            r[1] for r in conn.execute("PRAGMA table_info(milestones)").fetchall()
+        }
+        task_cols = {r[1] for r in conn.execute("PRAGMA table_info(tasks)").fetchall()}
     finally:
         conn.close()
     assert {c.name for c in models.User.__table__.columns} == user_cols
     assert {c.name for c in models.Client.__table__.columns} == client_cols
     assert {c.name for c in models.Project.__table__.columns} == project_cols
-    assert set(Base.metadata.tables) == {"users", "clients", "projects"}
+    assert {c.name for c in models.Milestone.__table__.columns} == milestone_cols
+    assert {c.name for c in models.Task.__table__.columns} == task_cols
+    assert set(Base.metadata.tables) == {
+        "users",
+        "clients",
+        "projects",
+        "milestones",
+        "tasks",
+    }

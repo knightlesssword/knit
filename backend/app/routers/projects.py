@@ -10,12 +10,13 @@ from datetime import datetime, timezone
 from typing import Any
 
 from fastapi import APIRouter, Depends, HTTPException, Response
+from sqlalchemy import func
 from sqlalchemy.orm import Session
 
 from ..database import get_db
 from ..deps import get_current_user
 from ..errors import coded_error
-from ..models import Client, Project, User
+from ..models import Client, Milestone, Project, Task, User
 from ..schemas import ProjectCreate, ProjectOut, ProjectUpdate
 
 logger = logging.getLogger("knit.projects")
@@ -50,7 +51,32 @@ def _client_name(db: Session, user_id: int, client_id: int) -> str:
     return _owned_client(db, user_id, client_id).name
 
 
-def _to_out(project: Project, client_name: str) -> dict[str, Any]:
+def _progress(db: Session, user_id: int, project_id: int) -> dict[str, int] | None:
+    """completed tasks / total tasks; null when the project has no tasks."""
+    total = (
+        db.query(func.count(Task.id))
+        .filter(Task.user_id == user_id, Task.project_id == project_id)
+        .scalar()
+        or 0
+    )
+    if total == 0:
+        return None
+    done = (
+        db.query(func.count(Task.id))
+        .filter(
+            Task.user_id == user_id,
+            Task.project_id == project_id,
+            Task.status == "done",
+        )
+        .scalar()
+        or 0
+    )
+    return {"total": total, "done": done}
+
+
+def _to_out(
+    project: Project, client_name: str, progress: dict[str, int] | None = None
+) -> dict[str, Any]:
     return {
         "id": project.id,
         "user_id": project.user_id,
@@ -73,6 +99,7 @@ def _to_out(project: Project, client_name: str) -> dict[str, Any]:
         "archived_at": project.archived_at,
         "created_at": project.created_at,
         "updated_at": project.updated_at,
+        "progress": progress,
     }
 
 
@@ -89,7 +116,12 @@ def list_projects(
     )
     if not include_archived:
         query = query.filter(Project.archived_at.is_(None))
-    return [_to_out(project, name) for project, name in query.order_by(Project.id).all()]
+    rows = query.order_by(Project.id).all()
+    # One COUNT pair per project; local scale, no caching layer.
+    return [
+        _to_out(project, name, _progress(db, user.id, project.id))
+        for project, name in rows
+    ]
 
 
 @router.post("", response_model=ProjectOut, status_code=201)
@@ -112,7 +144,8 @@ def create_project(
         user.id,
         client.id,
     )
-    return _to_out(project, client.name)
+    # Fresh projects have no tasks, so progress is null without a query.
+    return _to_out(project, client.name, None)
 
 
 @router.get("/{project_id}", response_model=ProjectOut)
@@ -122,7 +155,11 @@ def get_project(
     db: Session = Depends(get_db),  # noqa: B008
 ):
     project = _owned_project(db, user.id, project_id)
-    return _to_out(project, _client_name(db, user.id, project.client_id))
+    return _to_out(
+        project,
+        _client_name(db, user.id, project.client_id),
+        _progress(db, user.id, project.id),
+    )
 
 
 @router.patch("/{project_id}", response_model=ProjectOut)
@@ -143,7 +180,11 @@ def update_project(
     db.commit()
     db.refresh(project)
     logger.info("project_update resource=project identifier=%s user=%s", project.id, user.id)
-    return _to_out(project, _client_name(db, user.id, project.client_id))
+    return _to_out(
+        project,
+        _client_name(db, user.id, project.client_id),
+        _progress(db, user.id, project.id),
+    )
 
 
 @router.post("/{project_id}/archive", response_model=ProjectOut)
@@ -159,7 +200,11 @@ def archive_project(
         db.commit()
         db.refresh(project)
     logger.info("project_archive resource=project identifier=%s user=%s", project.id, user.id)
-    return _to_out(project, _client_name(db, user.id, project.client_id))
+    return _to_out(
+        project,
+        _client_name(db, user.id, project.client_id),
+        _progress(db, user.id, project.id),
+    )
 
 
 @router.post("/{project_id}/unarchive", response_model=ProjectOut)
@@ -175,7 +220,11 @@ def unarchive_project(
         db.commit()
         db.refresh(project)
     logger.info("project_unarchive resource=project identifier=%s user=%s", project.id, user.id)
-    return _to_out(project, _client_name(db, user.id, project.client_id))
+    return _to_out(
+        project,
+        _client_name(db, user.id, project.client_id),
+        _progress(db, user.id, project.id),
+    )
 
 
 @router.delete("/{project_id}", status_code=204)
@@ -185,6 +234,22 @@ def delete_project(
     db: Session = Depends(get_db),  # noqa: B008
 ):
     project = _owned_project(db, user.id, project_id)
+    has_work = (
+        db.query(Milestone.id)
+        .filter(Milestone.user_id == user.id, Milestone.project_id == project.id)
+        .first()
+        is not None
+        or db.query(Task.id)
+        .filter(Task.user_id == user.id, Task.project_id == project.id)
+        .first()
+        is not None
+    )
+    if has_work:
+        raise coded_error(
+            409,
+            "project_has_work",
+            "project has milestones or tasks and cannot be deleted; archive it instead",
+        )
     db.delete(project)
     db.commit()
     logger.info("project_delete resource=project identifier=%s user=%s", project_id, user.id)

@@ -12,6 +12,7 @@ from .config import settings
 from .db import migrate
 from .errors import register_error_handlers
 from .routers.auth import router as auth_router
+from .routers.clients import router as clients_router
 from .routers.health import router as health_router
 
 logging.basicConfig(
@@ -24,7 +25,7 @@ logger = logging.getLogger("knit")
 def create_app() -> FastAPI:
     @asynccontextmanager
     async def lifespan(_: FastAPI):
-        if settings.secret_key == "dev-only-secret-change-me":
+        if not os.environ.get("KNIT_SECRET_KEY"):
             logger.warning("using default dev secret key; set KNIT_SECRET_KEY")
         applied = migrate(settings.database_path)
         logger.info(
@@ -45,6 +46,7 @@ def create_app() -> FastAPI:
     )
     app.include_router(health_router, prefix="/api")
     app.include_router(auth_router, prefix="/api")
+    app.include_router(clients_router, prefix="/api")
 
     return app
 

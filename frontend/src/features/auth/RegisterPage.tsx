@@ -91,8 +91,8 @@ export function RegisterPage() {
           </p>
           {fieldErrors.password ? <p className="field-error">{fieldErrors.password}</p> : null}
         </div>
-        <button type="submit" disabled={busy}>
-          {busy ? "creating…" : "create account"}
+        <button type="submit" className="btn-primary" disabled={busy}>
+          <span className="btn-text">{busy ? "creating…" : "create account"}</span>
         </button>
       </form>
       <hr className="rule" />

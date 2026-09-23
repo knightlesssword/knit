@@ -73,8 +73,8 @@ export function LoginPage() {
           />
           {fieldErrors.password ? <p className="field-error">{fieldErrors.password}</p> : null}
         </div>
-        <button type="submit" disabled={busy}>
-          {busy ? "logging in…" : "log in"}
+        <button type="submit" className="btn-primary" disabled={busy}>
+          <span className="btn-text">{busy ? "logging in…" : "log in"}</span>
         </button>
       </form>
       <hr className="rule" />

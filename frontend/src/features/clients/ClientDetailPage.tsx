@@ -159,8 +159,8 @@ export function ClientDetailPage() {
               onChange={(e) => setNotes(e.target.value)}
             />
           </div>
-          <button type="submit" className="btn-primary" disabled={saving}>
-            <span className="btn-text">{saving ? "saving…" : "save changes"}</span>
+          <button type="submit" disabled={saving}>
+            {saving ? "saving…" : "save changes"}
           </button>
         </form>
       </section>
@@ -178,8 +178,8 @@ export function ClientDetailPage() {
               delete “{client?.name}”? this permanently removes the client and cannot be
               undone.
             </p>
-            <button type="button" className="btn-primary" onClick={remove} disabled={deleting}>
-              <span className="btn-text">{deleting ? "deleting…" : "yes, delete"}</span>
+            <button type="button" onClick={remove} disabled={deleting}>
+              {deleting ? "deleting…" : "yes, delete"}
             </button>{" "}
             <button
               type="button"

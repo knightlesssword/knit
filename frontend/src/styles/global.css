@@ -6,7 +6,6 @@
   --ink: #111;
   --ink-soft: #444;
   --muted: #767676;
-  --danger: #b3261e;
   --line: #e4e4e4;
   --paper: #fff;
   --wash: #f7f7f7;
@@ -99,7 +98,7 @@ input {
 }
 
 input[aria-invalid="true"] {
-  border-color: var(--danger);
+  border-color: var(--ink);
   border-width: 2px;
 }
 
@@ -110,21 +109,28 @@ input[aria-invalid="true"] {
 .field-error {
   font-size: 0.875rem;
   margin-top: var(--space-1);
-  color: var(--danger);
+  color: var(--ink);
 }
 
 .form-error {
-  border-top: 1px solid var(--danger);
-  border-bottom: 1px solid var(--danger);
+  border-top: 1px solid var(--line);
+  border-bottom: 1px solid var(--line);
   padding: var(--space-3) 0;
   margin-bottom: var(--space-4);
 }
 
 button {
   cursor: pointer;
-  font: inherit;
+  background: var(--ink);
+  color: var(--paper);
+  border: 1px solid var(--ink);
   border-radius: var(--radius);
   padding: var(--space-2) var(--space-4);
+  transition: opacity 120ms ease;
+}
+
+button:hover {
+  opacity: 0.85;
 }
 
 button:disabled {
@@ -132,64 +138,9 @@ button:disabled {
   cursor: default;
 }
 
-/* Primary actions only (login, logout, create, save, confirm) — not nav.
- * Sliding ink fill on hover; text inverts via difference blend so it stays
- * legible over both paper and fill. Light-theme adaptation of the effect. */
-.btn-primary {
-  position: relative;
-  overflow: hidden;
-  background: transparent;
-  color: var(--ink);
-  border: none;
-  transition:
-    transform 160ms ease,
-    box-shadow 160ms ease;
-}
-
-.btn-primary::before {
-  content: "";
-  position: absolute;
-  inset: 0;
-  background: var(--ink);
-  transform: scaleX(0);
-  transform-origin: left;
-  transition: transform 180ms ease;
-}
-
-.btn-primary .btn-text {
-  position: relative;
-  z-index: 1;
-  font-weight: 400;
-  letter-spacing: 0.04em;
-  color: #fff;
-  mix-blend-mode: difference;
-}
-
-.btn-primary:not(:disabled):hover {
-  transform: translateY(-2px);
-  box-shadow: 0 4px 12px rgba(17, 17, 17, 0.15);
-}
-
-.btn-primary:not(:disabled):hover::before {
-  transform: scaleX(1);
-}
-
-.btn-primary:not(:disabled):active {
-  transform: translateY(0);
-  box-shadow: none;
-}
-
 button.secondary {
   background: transparent;
   color: var(--ink);
-  border: 1px solid var(--line);
-  transition:
-    border-color 120ms ease,
-    opacity 120ms ease;
-}
-
-button.secondary:hover {
-  border-color: var(--ink);
 }
 
 .shell {
@@ -298,11 +249,5 @@ button.secondary:hover {
   *::before,
   *::after {
     transition: none !important;
-  }
-
-  .btn-primary:hover,
-  .btn-primary:active {
-    transform: none;
-    box-shadow: none;
   }
 }

@@ -41,8 +41,8 @@ export function Shell() {
         </nav>
         <div>
           <p className="meta">{user.email}</p>
-          <button type="button" className="btn-primary" onClick={logout}>
-            <span className="btn-text">log out</span>
+          <button type="button" className="secondary" onClick={logout}>
+            log out
           </button>
         </div>
       </aside>

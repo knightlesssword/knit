@@ -128,8 +128,8 @@ export function ClientsPage() {
             />
             {fieldErrors.email ? <p className="field-error">{fieldErrors.email}</p> : null}
           </div>
-          <button type="submit" className="btn-primary" disabled={busy}>
-            <span className="btn-text">{busy ? "creating…" : "create client"}</span>
+          <button type="submit" disabled={busy}>
+            {busy ? "creating…" : "create client"}
           </button>
         </form>
       </section>

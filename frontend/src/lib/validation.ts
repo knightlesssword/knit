@@ -18,3 +18,8 @@ export function validatePassword(password: string): string | null {
   if (password.length < 8) return "password must be at least 8 characters";
   return null;
 }
+
+export function validateOptionalEmail(email: string): string | null {
+  if (!email.trim()) return null;
+  return validateEmail(email);
+}

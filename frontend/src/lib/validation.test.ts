@@ -1,5 +1,10 @@
 import { describe, expect, it } from "vitest";
-import { validateEmail, validateName, validatePassword } from "./validation";
+import {
+  validateEmail,
+  validateName,
+  validateOptionalEmail,
+  validatePassword,
+} from "./validation";
 
 describe("validation", () => {
   it("accepts a normal registration", () => {
@@ -23,5 +28,12 @@ describe("validation", () => {
 
   it("rejects short passwords", () => {
     expect(validatePassword("short")).not.toBeNull();
+  });
+
+  it("treats a blank client email as absent", () => {
+    expect(validateOptionalEmail("")).toBeNull();
+    expect(validateOptionalEmail("   ")).toBeNull();
+    expect(validateOptionalEmail("bad")).not.toBeNull();
+    expect(validateOptionalEmail("hi@acme.test")).toBeNull();
   });
 });

@@ -1,20 +1,21 @@
 # knit
 
-a minimalist, local-first freelance project manager. single user, local sqlite,
-react + fastapi. calm, sparse, text-first.
+a minimalist, local-first freelance project manager. react + fastapi + local
+sqlite. calm, sparse, text-first. each account gets its own clients, projects,
+and data.
 
 specs: `project.md` (product), `agents.md` (engineering rules). both are
 authoritative — read them before changing anything.
 
-## status: phase 0 foundation
+## status: phase 1 clients
 
-working: backend shell, sqlite + migrations, auth (register/login/me),
-frontend shell with auth pages + navigation skeleton, pwa shell (manifest +
-service worker), backend + frontend test suites.
+working: backend shell, sqlite + migrations (users, clients), auth
+(register/login/me), per-user client crud, frontend shell with auth pages,
+clients list/detail, about page, pwa shell, backend + frontend test suites.
 
-not yet built: clients (phase 1), projects (phase 2), tasks (phase 3),
-time (phase 4), money/invoices (phase 5), files/comments (phase 6),
-command palette + search (phase 7).
+not yet built: projects (phase 2), tasks (phase 3), time (phase 4),
+money/invoices (phase 5), files/comments (phase 6), command palette + search
+(phase 7).
 
 ## prerequisites
 
@@ -73,12 +74,17 @@ cd frontend; npm test                  # 13 tests: validation, api client, state
 cd frontend; npm run build             # typecheck + production build
 ```
 
-## api (phase 0)
+## api (phases 0-1)
 
 - `GET /api/health` → `{status, version}`
 - `POST /api/auth/register` `{name, email, password}` → 201 `{token, user}`
 - `POST /api/auth/login` `{identifier, password}` → 200 `{token, user}`
 - `GET /api/auth/me` (bearer) → 200 user
+- `GET /api/clients` (bearer) → 200 own clients
+- `POST /api/clients` `{name, company?, email?, phone?, notes?}` → 201 client
+- `GET /api/clients/{id}` → 200 client, or 404 (also when owned by someone else)
+- `PATCH /api/clients/{id}` partial update → 200 client
+- `DELETE /api/clients/{id}` → 204
 - errors always look like `{error: {code, message}}`. no stack traces leave the server.
 
 ## layout
@@ -86,8 +92,9 @@ cd frontend; npm run build             # typecheck + production build
 ```text
 backend/app/    config, errors, db (migrations), database (engine),
                 models, schemas, security, deps, routers/*, migrations/*
-backend/tests/  health, auth, migrations
+backend/tests/  health, auth, clients, migrations
 frontend/src/   app/ (shell, router)  features/auth  features/dashboard
+                features/clients  features/about
                 components/ (loading/empty/error/progress primitives)
                 lib/ (typed api client, validation)  styles/
 ```

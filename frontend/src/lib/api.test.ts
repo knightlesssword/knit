@@ -47,4 +47,20 @@ describe("api client", () => {
       expect((err as ApiError).code).toBe("network_error");
     }
   });
+
+  it("resolves 204 deletes without parsing a body", async () => {
+    const fetchMock = vi.fn().mockResolvedValue({ ok: true, status: 204 });
+    vi.stubGlobal("fetch", fetchMock);
+    await expect(api.clients.remove(3)).resolves.toBeUndefined();
+    expect(fetchMock.mock.calls[0][0]).toBe("/api/clients/3");
+    expect(fetchMock.mock.calls[0][1].method).toBe("DELETE");
+  });
+
+  it("posts new clients as json", async () => {
+    const created = { id: 1, name: "Acme" };
+    const fetchMock = vi.fn().mockResolvedValue(jsonResponse(created, 201));
+    vi.stubGlobal("fetch", fetchMock);
+    await expect(api.clients.create({ name: "Acme" })).resolves.toEqual(created);
+    expect(fetchMock.mock.calls[0][1].method).toBe("POST");
+  });
 });

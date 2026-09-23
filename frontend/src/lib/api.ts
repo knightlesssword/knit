@@ -28,6 +28,25 @@ export interface AuthResponse {
   user: User;
 }
 
+export interface Client {
+  id: number;
+  name: string;
+  company: string | null;
+  email: string | null;
+  phone: string | null;
+  notes: string | null;
+  created_at: string;
+  updated_at: string;
+}
+
+export interface ClientInput {
+  name: string;
+  company?: string;
+  email?: string;
+  phone?: string;
+  notes?: string;
+}
+
 const TOKEN_KEY = "knit.token";
 
 export function getToken(): string | null {
@@ -62,6 +81,7 @@ export async function apiFetch<T>(path: string, init: RequestInit = {}): Promise
     }
     throw new ApiError(code, message, res.status);
   }
+  if (res.status === 204) return undefined as T;
   return (await res.json()) as T;
 }
 
@@ -78,4 +98,14 @@ export const api = {
       body: JSON.stringify(input),
     }),
   me: () => apiFetch<User>("/api/auth/me"),
+  clients: {
+    list: () => apiFetch<Client[]>("/api/clients"),
+    get: (id: number) => apiFetch<Client>(`/api/clients/${id}`),
+    create: (input: ClientInput) =>
+      apiFetch<Client>("/api/clients", { method: "POST", body: JSON.stringify(input) }),
+    update: (id: number, input: Partial<ClientInput>) =>
+      apiFetch<Client>(`/api/clients/${id}`, { method: "PATCH", body: JSON.stringify(input) }),
+    remove: (id: number) =>
+      apiFetch<void>(`/api/clients/${id}`, { method: "DELETE" }),
+  },
 };

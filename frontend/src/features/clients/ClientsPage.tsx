@@ -14,6 +14,8 @@ export function ClientsPage() {
   const [name, setName] = useState("");
   const [company, setCompany] = useState("");
   const [email, setEmail] = useState("");
+  const [phone, setPhone] = useState("");
+  const [notes, setNotes] = useState("");
   const [fieldErrors, setFieldErrors] = useState<{ name?: string; email?: string }>({});
   const [formError, setFormError] = useState<string | null>(null);
   const [busy, setBusy] = useState(false);
@@ -49,11 +51,15 @@ export function ClientsPage() {
         name: name.trim(),
         company: company.trim() || undefined,
         email: email.trim() || undefined,
+        phone: phone.trim() || undefined,
+        notes: notes.trim() || undefined,
       });
       setClients((prev) => [...prev, created]);
       setName("");
       setCompany("");
       setEmail("");
+      setPhone("");
+      setNotes("");
       setFieldErrors({});
     } catch (err) {
       setFormError(err instanceof ApiError ? err.message : "couldn't create client");
@@ -127,6 +133,24 @@ export function ClientsPage() {
               aria-invalid={Boolean(fieldErrors.email)}
             />
             {fieldErrors.email ? <p className="field-error">{fieldErrors.email}</p> : null}
+          </div>
+          <div className="field">
+            <label htmlFor="client-phone">phone (optional)</label>
+            <input
+              id="client-phone"
+              type="tel"
+              value={phone}
+              onChange={(e) => setPhone(e.target.value)}
+            />
+          </div>
+          <div className="field">
+            <label htmlFor="client-notes">notes (optional)</label>
+            <input
+              id="client-notes"
+              type="text"
+              value={notes}
+              onChange={(e) => setNotes(e.target.value)}
+            />
           </div>
           <button type="submit" disabled={busy}>
             {busy ? "creating…" : "create client"}

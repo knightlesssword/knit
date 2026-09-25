@@ -15,9 +15,11 @@ import {
 } from "../../lib/api";
 import {
   formatDuration,
-  minutesToSeconds,
+  minutesInputToSeconds,
   secondsToMinutes,
+  secondsToMinutesInput,
 } from "../../lib/duration";
+import { toISODate, weekStart } from "../../lib/dates";
 import { formatMoney, majorToMinor, minorToMajor } from "../../lib/money";
 import { validateName } from "../../lib/validation";
 import { EmptyState, ErrorState, Loading, ProgressBar } from "../../components/states";
@@ -33,12 +35,41 @@ function moneySummary(project: Project): string {
   }
   if (project.project_type === "hourly") {
     return project.hourly_rate !== null
-      ? `rate ${formatMoney(project.hourly_rate, project.currency)} per hour. tracked value arrives in phase 4.`
-      : "no hourly rate set. tracked value arrives in phase 4.";
+      ? `rate ${formatMoney(project.hourly_rate, project.currency)} per hour`
+      : "no hourly rate set";
   }
   return project.recurring_amount !== null
     ? `recurring ${formatMoney(project.recurring_amount, project.currency)}`
     : "no recurring amount set";
+}
+
+/** This week's tracked time for one hourly project, from the timesheet summary. */
+function HourlyWeekLine({ projectId }: { projectId: number }) {
+  const [total, setTotal] = useState<number | null>(null);
+  const [failed, setFailed] = useState(false);
+
+  useEffect(() => {
+    api
+      .timesheet(toISODate(weekStart(new Date())))
+      .then((summary) => {
+        setTotal(summary.by_project.find((row) => row.project_id === projectId)?.total_seconds ?? 0);
+      })
+      .catch(() => setFailed(true));
+  }, [projectId]);
+
+  if (failed) {
+    return (
+      <p className="meta">
+        <Link to="/timesheet">open timesheet</Link> for this week's tracked time.
+      </p>
+    );
+  }
+  if (total === null) return <p className="meta">loading this week's time…</p>;
+  return (
+    <p className="meta">
+      tracked this week {formatDuration(total)} · <Link to="/timesheet">open timesheet</Link>
+    </p>
+  );
 }
 
 function taskStatusLabel(status: TaskStatus): string {
@@ -173,12 +204,12 @@ export function ProjectDetailPage() {
     setSaving(true);
     setFormError(null);
     try {
-      const amountField =
+      const amountFields =
         projectType === "fixed_price"
-          ? { fixed_price: minor }
+          ? { fixed_price: minor, hourly_rate: null, recurring_amount: null }
           : projectType === "hourly"
-            ? { hourly_rate: minor }
-            : { recurring_amount: minor };
+            ? { fixed_price: null, hourly_rate: minor, recurring_amount: null }
+            : { fixed_price: null, hourly_rate: null, recurring_amount: minor };
       const updated = await api.projects.update(projectId, {
         name: name.trim(),
         project_type: projectType,
@@ -187,8 +218,9 @@ export function ProjectDetailPage() {
         description: description.trim() || undefined,
         notes: notes.trim() || undefined,
         budget: budgetMinor,
-        recurring_billing_period: recurringBillingPeriod.trim() || undefined,
-        ...amountField,
+        recurring_billing_period:
+          projectType === "retainer" ? recurringBillingPeriod.trim() || null : null,
+        ...amountFields,
         start_date: startDate || undefined,
         due_date: dueDate || undefined,
       });
@@ -268,6 +300,7 @@ export function ProjectDetailPage() {
       <section aria-labelledby="money">
         <h2 id="money">money</h2>
         <p className="meta">{moneySummary(project)}</p>
+        {project.project_type === "hourly" ? <HourlyWeekLine projectId={project.id} /> : null}
       </section>
 
       <hr className="rule" />
@@ -469,8 +502,9 @@ export function ProjectDetailPage() {
         ) : (
           <div>
             <p className="meta">
-              delete “{project.name}”? this permanently removes the project and cannot be
-              undone.
+              delete “{project.name}”? this permanently removes the project with its
+              tasks and logged time, and cannot be undone. to keep that history
+              accessible, archive instead.
             </p>
             <button type="button" onClick={remove} disabled={acting}>
               {acting ? "deleting…" : "yes, delete"}
@@ -505,6 +539,7 @@ function MilestonesSection({
   onChanged: () => void;
 }) {
   const [name, setName] = useState("");
+  const [description, setDescription] = useState("");
   const [dueDate, setDueDate] = useState("");
   const [nameError, setNameError] = useState<string | null>(null);
   const [formError, setFormError] = useState<string | null>(null);
@@ -531,9 +566,11 @@ function MilestonesSection({
     try {
       await api.milestones.create(projectId, {
         name: name.trim(),
+        description: description.trim() || null,
         due_date: dueDate || null,
       });
       setName("");
+      setDescription("");
       setDueDate("");
       onChanged();
     } catch (err) {
@@ -597,6 +634,7 @@ function MilestonesSection({
                 </span>
                 <br />
                 <ProgressBar value={m.task_total > 0 ? m.task_done / m.task_total : null} />
+                {m.description ? <p className="meta">{m.description}</p> : null}
                 <button
                   type="button"
                   className="secondary"
@@ -652,6 +690,15 @@ function MilestonesSection({
           {nameError ? <p className="field-error">{nameError}</p> : null}
         </div>
         <div className="field">
+          <label htmlFor="milestone-description">description (optional)</label>
+          <input
+            id="milestone-description"
+            type="text"
+            value={description}
+            onChange={(e) => setDescription(e.target.value)}
+          />
+        </div>
+        <div className="field">
           <label htmlFor="milestone-due">due date (optional)</label>
           <input
             id="milestone-due"
@@ -680,6 +727,7 @@ function TasksSection({
   onChanged: () => void;
 }) {
   const [title, setTitle] = useState("");
+  const [description, setDescription] = useState("");
   const [milestoneId, setMilestoneId] = useState("");
   const [priority, setPriority] = useState<TaskPriority>("medium");
   const [dueDate, setDueDate] = useState("");
@@ -712,8 +760,9 @@ function TasksSection({
     };
     let estimate: number | null = null;
     if (estimateMinutes.trim()) {
-      estimate = minutesToSeconds(estimateMinutes);
-      if (estimate === null) errors.estimate = "enter whole minutes like 90";
+      estimate = minutesInputToSeconds(estimateMinutes);
+      if (estimate === null || estimate <= 0)
+        errors.estimate = "enter minutes greater than 0";
     }
     setFieldErrors(errors);
     if (errors.title || errors.estimate) return; // preserve input on error
@@ -722,12 +771,14 @@ function TasksSection({
     try {
       await api.tasks.create(projectId, {
         title: title.trim(),
+        description: description.trim() || null,
         milestone_id: milestoneId ? Number(milestoneId) : null,
         priority,
         due_date: dueDate || null,
         estimated_duration_seconds: estimate,
       });
       setTitle("");
+      setDescription("");
       setMilestoneId("");
       setPriority("medium");
       setDueDate("");
@@ -854,7 +905,10 @@ function TasksSection({
                 </button>{" "}
                 {confirmingDelete === task.id ? (
                   <span>
-                    <span className="meta">delete “{task.title}”? cannot be undone. </span>
+                    <span className="meta">
+                      delete “{task.title}”? logged time on this task must be deleted
+                      first, otherwise deletion is blocked. cannot be undone.{" "}
+                    </span>
                     <button type="button" disabled={busy} onClick={() => remove(task.id)}>
                       {busy ? "deleting…" : "yes, delete"}
                     </button>{" "}
@@ -893,6 +947,15 @@ function TasksSection({
             aria-invalid={Boolean(fieldErrors.title)}
           />
           {fieldErrors.title ? <p className="field-error">{fieldErrors.title}</p> : null}
+        </div>
+        <div className="field">
+          <label htmlFor="task-description">description (optional)</label>
+          <input
+            id="task-description"
+            type="text"
+            value={description}
+            onChange={(e) => setDescription(e.target.value)}
+          />
         </div>
         <div className="field">
           <label htmlFor="task-milestone">milestone (optional)</label>
@@ -936,7 +999,7 @@ function TasksSection({
             id="task-estimate"
             type="number"
             min={0}
-            step={1}
+            step="any"
             placeholder="90"
             value={estimateMinutes}
             onChange={(e) => setEstimateMinutes(e.target.value)}
@@ -974,11 +1037,15 @@ function TaskEditor({
   );
   const [priority, setPriority] = useState<TaskPriority>(task.priority);
   const [dueDate, setDueDate] = useState(task.due_date ?? "");
-  const [estimateMinutes, setEstimateMinutes] = useState(
+  const [estimateMinutes, setEstimateMinutes] = useState(() =>
     task.estimated_duration_seconds !== null
-      ? String(secondsToMinutes(task.estimated_duration_seconds))
+      ? (secondsToMinutesInput(task.estimated_duration_seconds) ??
+        String(secondsToMinutes(task.estimated_duration_seconds)))
       : "",
   );
+  const estimateRoundsDown =
+    task.estimated_duration_seconds !== null &&
+    secondsToMinutesInput(task.estimated_duration_seconds) === null;
   const [fieldErrors, setFieldErrors] = useState<{ title?: string; estimate?: string }>({});
   const [saveError, setSaveError] = useState<string | null>(null);
   const [saving, setSaving] = useState(false);
@@ -990,8 +1057,9 @@ function TaskEditor({
     };
     let estimate: number | null = null;
     if (estimateMinutes.trim()) {
-      estimate = minutesToSeconds(estimateMinutes);
-      if (estimate === null) errors.estimate = "enter whole minutes like 90";
+      estimate = minutesInputToSeconds(estimateMinutes);
+      if (estimate === null || estimate <= 0)
+        errors.estimate = "enter minutes greater than 0";
     }
     setFieldErrors(errors);
     if (errors.title || errors.estimate) return; // preserve input on error
@@ -1085,13 +1153,18 @@ function TaskEditor({
           id={`${prefix}-estimate`}
           type="number"
           min={0}
-          step={1}
+          step="any"
           value={estimateMinutes}
           onChange={(e) => setEstimateMinutes(e.target.value)}
           aria-invalid={Boolean(fieldErrors.estimate)}
         />
         {fieldErrors.estimate ? (
           <p className="field-error">{fieldErrors.estimate}</p>
+        ) : null}
+        {!fieldErrors.estimate && estimateRoundsDown ? (
+          <p className="meta">
+            this estimate has extra seconds — saving rounds down to whole minutes.
+          </p>
         ) : null}
       </div>
       <button type="submit" disabled={saving || busy}>

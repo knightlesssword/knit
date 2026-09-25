@@ -1,4 +1,4 @@
-import { FormEvent, useEffect, useState } from "react";
+import { FormEvent, useEffect, useRef, useState } from "react";
 import { Link } from "react-router-dom";
 import {
   ApiError,
@@ -9,7 +9,12 @@ import {
   api,
 } from "../../lib/api";
 import { addDays, formatDayLabel, parseISODate, toISODate, weekStart } from "../../lib/dates";
-import { formatDuration, minutesToSeconds, secondsToMinutes } from "../../lib/duration";
+import {
+  formatDuration,
+  minutesInputToSeconds,
+  secondsToMinutes,
+  secondsToMinutesInput,
+} from "../../lib/duration";
 import { EmptyState, ErrorState, Loading } from "../../components/states";
 
 type SectionStatus = "loading" | "ready" | "error";
@@ -41,18 +46,23 @@ export function TimesheetPage() {
   const [projects, setProjects] = useState<Project[]>([]);
   const [tasks, setTasks] = useState<Task[]>([]);
   const [projectFilter, setProjectFilter] = useState("");
+  const requestRef = useRef(0);
 
   const load = (week: string) => {
     const from = week;
     const to = toISODate(addDays(parseISODate(week), 6));
+    requestRef.current += 1;
+    const requestId = requestRef.current;
     setSummaryStatus("loading");
     api
       .timesheet(week)
       .then((s) => {
+        if (requestRef.current !== requestId) return; // stale week, ignore
         setSummary(s);
         setSummaryStatus("ready");
       })
       .catch((err: unknown) => {
+        if (requestRef.current !== requestId) return; // stale week, ignore
         setSummaryError(err instanceof ApiError ? err.message : "couldn't load timesheet");
         setSummaryStatus("error");
       });
@@ -60,10 +70,12 @@ export function TimesheetPage() {
     api.timeEntries
       .listFiltered({ from, to })
       .then((list) => {
+        if (requestRef.current !== requestId) return; // stale week, ignore
         setEntries(list);
         setEntriesStatus("ready");
       })
       .catch((err: unknown) => {
+        if (requestRef.current !== requestId) return; // stale week, ignore
         setEntriesError(err instanceof ApiError ? err.message : "couldn't load entries");
         setEntriesStatus("error");
       });
@@ -94,6 +106,14 @@ export function TimesheetPage() {
   const visibleEntries = projectFilter
     ? entries.filter((e) => e.project_id === Number(projectFilter))
     : entries;
+  const filterProject = projectFilter
+    ? projects.find((p) => String(p.id) === projectFilter)
+    : undefined;
+  const entriesHeading = filterProject
+    ? `entries · ${filterProject.name}`
+    : projectFilter
+      ? "entries · selected project"
+      : "entries · all projects";
 
   const grouped = new Map<string, TimeEntry[]>();
   for (const entry of visibleEntries) {
@@ -121,7 +141,8 @@ export function TimesheetPage() {
       <hr className="rule" />
 
       <section aria-labelledby="week-summary">
-        <h2 id="week-summary">week summary</h2>
+        <h2 id="week-summary">week summary · all projects</h2>
+        <p className="meta">covers every project this week, ignoring the filter below.</p>
         {summaryStatus === "loading" ? (
           <Loading label="loading week" />
         ) : summaryStatus === "error" || !summary ? (
@@ -161,7 +182,7 @@ export function TimesheetPage() {
 
       <hr className="rule" />
       <section aria-labelledby="week-entries">
-        <h2 id="week-entries">entries</h2>
+        <h2 id="week-entries">{entriesHeading}</h2>
         <div className="field">
           <label htmlFor="timesheet-filter-project">filter by project (optional)</label>
           <select
@@ -330,7 +351,11 @@ function EntryCreateForm({
   const [minutes, setMinutes] = useState("");
   const [description, setDescription] = useState("");
   const [billable, setBillable] = useState(true);
-  const [fieldErrors, setFieldErrors] = useState<{ project?: string; minutes?: string }>({});
+  const [fieldErrors, setFieldErrors] = useState<{
+    project?: string;
+    date?: string;
+    minutes?: string;
+  }>({});
   const [formError, setFormError] = useState<string | null>(null);
   const [creating, setCreating] = useState(false);
 
@@ -338,18 +363,19 @@ function EntryCreateForm({
 
   const submit = async (e: FormEvent) => {
     e.preventDefault();
-    const errors: { project?: string; minutes?: string } = {
+    const errors: { project?: string; date?: string; minutes?: string } = {
       project: projectId ? undefined : "choose a project",
+      date: entryDate ? undefined : "choose a date",
     };
     let seconds: number | null = null;
     if (!minutes.trim()) {
       errors.minutes = "enter minutes greater than 0";
     } else {
-      seconds = minutesToSeconds(minutes);
+      seconds = minutesInputToSeconds(minutes);
       if (seconds === null || seconds <= 0) errors.minutes = "enter minutes greater than 0";
     }
     setFieldErrors(errors);
-    if (errors.project || errors.minutes) return; // preserve input on error
+    if (errors.project || errors.date || errors.minutes) return; // preserve input on error
     setCreating(true);
     setFormError(null);
     try {
@@ -420,7 +446,9 @@ function EntryCreateForm({
           type="date"
           value={entryDate}
           onChange={(e) => setEntryDate(e.target.value)}
+          aria-invalid={Boolean(fieldErrors.date)}
         />
+        {fieldErrors.date ? <p className="field-error">{fieldErrors.date}</p> : null}
       </div>
       <div className="field">
         <label htmlFor="log-minutes">minutes</label>
@@ -428,7 +456,7 @@ function EntryCreateForm({
           id="log-minutes"
           type="number"
           min={1}
-          step={1}
+          step="any"
           placeholder="60"
           value={minutes}
           onChange={(e) => setMinutes(e.target.value)}
@@ -474,10 +502,15 @@ function EntryEditor({
 }) {
   const [taskId, setTaskId] = useState(entry.task_id !== null ? String(entry.task_id) : "");
   const [entryDate, setEntryDate] = useState(entry.entry_date);
-  const [minutes, setMinutes] = useState(String(secondsToMinutes(entry.duration_seconds)));
+  const [minutes, setMinutes] = useState(
+    () =>
+      secondsToMinutesInput(entry.duration_seconds) ??
+      String(secondsToMinutes(entry.duration_seconds)),
+  );
+  const roundsDown = secondsToMinutesInput(entry.duration_seconds) === null;
   const [description, setDescription] = useState(entry.description ?? "");
   const [billable, setBillable] = useState(entry.billable);
-  const [fieldErrors, setFieldErrors] = useState<{ minutes?: string }>({});
+  const [fieldErrors, setFieldErrors] = useState<{ date?: string; minutes?: string }>({});
   const [saveError, setSaveError] = useState<string | null>(null);
   const [saving, setSaving] = useState(false);
 
@@ -485,16 +518,18 @@ function EntryEditor({
 
   const save = async (e: FormEvent) => {
     e.preventDefault();
-    const errors: { minutes?: string } = {};
+    const errors: { date?: string; minutes?: string } = {
+      date: entryDate ? undefined : "choose a date",
+    };
     let seconds: number | null = null;
     if (!minutes.trim()) {
       errors.minutes = "enter minutes greater than 0";
     } else {
-      seconds = minutesToSeconds(minutes);
+      seconds = minutesInputToSeconds(minutes);
       if (seconds === null || seconds <= 0) errors.minutes = "enter minutes greater than 0";
     }
     setFieldErrors(errors);
-    if (errors.minutes) return; // preserve input on error
+    if (errors.date || errors.minutes) return; // preserve input on error
     setSaving(true);
     setSaveError(null);
     try {
@@ -539,7 +574,9 @@ function EntryEditor({
           type="date"
           value={entryDate}
           onChange={(e) => setEntryDate(e.target.value)}
+          aria-invalid={Boolean(fieldErrors.date)}
         />
+        {fieldErrors.date ? <p className="field-error">{fieldErrors.date}</p> : null}
       </div>
       <div className="field">
         <label htmlFor={`${prefix}-minutes`}>minutes</label>
@@ -547,12 +584,17 @@ function EntryEditor({
           id={`${prefix}-minutes`}
           type="number"
           min={1}
-          step={1}
+          step="any"
           value={minutes}
           onChange={(e) => setMinutes(e.target.value)}
           aria-invalid={Boolean(fieldErrors.minutes)}
         />
         {fieldErrors.minutes ? <p className="field-error">{fieldErrors.minutes}</p> : null}
+        {!fieldErrors.minutes && roundsDown ? (
+          <p className="meta">
+            this entry has extra seconds — saving rounds down to whole minutes.
+          </p>
+        ) : null}
       </div>
       <div className="field">
         <label htmlFor={`${prefix}-description`}>description (optional)</label>

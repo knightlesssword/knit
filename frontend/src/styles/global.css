@@ -97,6 +97,12 @@ input {
   color: var(--ink);
 }
 
+input[type="checkbox"] {
+  width: auto;
+  padding: 0;
+  accent-color: var(--ink);
+}
+
 input[aria-invalid="true"] {
   border-color: var(--ink);
   border-width: 2px;

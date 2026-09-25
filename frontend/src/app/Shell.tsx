@@ -14,13 +14,27 @@ const NAV = [
 ];
 
 export function Shell() {
-  const { user, loading, logout } = useAuth();
+  const { user, loading, logout, serverUnreachable, retry } = useAuth();
   const location = useLocation();
 
   if (loading) {
     return (
       <main className="main">
         <Loading label="loading knit" />
+      </main>
+    );
+  }
+  if (serverUnreachable && !user) {
+    return (
+      <main className="main">
+        <h1>server unreachable</h1>
+        <p className="meta">
+          couldn't reach the local server. your login is kept — start the backend,
+          then try again.
+        </p>
+        <button type="button" onClick={retry}>
+          try again
+        </button>
       </main>
     );
   }

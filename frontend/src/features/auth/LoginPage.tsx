@@ -1,17 +1,27 @@
 import { FormEvent, useState } from "react";
-import { Link, useNavigate } from "react-router-dom";
+import { Link, Navigate, useNavigate } from "react-router-dom";
 import { ApiError } from "../../lib/api";
 import { validateEmail } from "../../lib/validation";
+import { Loading } from "../../components/states";
 import { useAuth } from "./AuthContext";
 
 export function LoginPage() {
-  const { login } = useAuth();
+  const { login, user, loading } = useAuth();
   const navigate = useNavigate();
   const [identifier, setIdentifier] = useState("");
   const [password, setPassword] = useState("");
   const [fieldErrors, setFieldErrors] = useState<{ identifier?: string; password?: string }>({});
   const [formError, setFormError] = useState<string | null>(null);
   const [busy, setBusy] = useState(false);
+
+  if (loading) {
+    return (
+      <main className="main">
+        <Loading label="loading" />
+      </main>
+    );
+  }
+  if (user) return <Navigate to="/" replace />;
 
   const submit = async (e: FormEvent) => {
     e.preventDefault();

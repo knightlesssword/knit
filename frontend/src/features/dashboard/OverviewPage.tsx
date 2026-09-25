@@ -19,7 +19,8 @@ export function OverviewPage() {
       .catch(() => setBackend("down"));
   }, []);
 
-  useEffect(() => {
+  const loadWeek = () => {
+    setWeek("loading");
     api
       .timesheet(toISODate(weekStart(new Date())))
       .then((summary) => {
@@ -30,7 +31,9 @@ export function OverviewPage() {
         setWeekError("couldn't load this week's time");
         setWeek("error");
       });
-  }, []);
+  };
+
+  useEffect(loadWeek, []);
 
   return (
     <div>
@@ -39,7 +42,12 @@ export function OverviewPage() {
       {week === "loading" ? (
         <p className="meta">loading this week's time…</p>
       ) : week === "error" ? (
-        <p className="meta">this week: {weekError}</p>
+        <p className="meta">
+          this week: {weekError}{" "}
+          <button type="button" className="secondary" onClick={loadWeek}>
+            try again
+          </button>
+        </p>
       ) : (
         <p className="meta">this week: {formatDuration(weekTotal)}</p>
       )}

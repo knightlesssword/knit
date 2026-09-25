@@ -175,8 +175,9 @@ export function ClientDetailPage() {
         ) : (
           <div>
             <p className="meta">
-              delete “{client?.name}”? this permanently removes the client and cannot be
-              undone.
+              {(client?.projects?.length ?? 0) > 0
+                ? `delete “${client?.name}”? it has ${client?.projects?.length} ${client?.projects?.length === 1 ? "project" : "projects"}. clients with projects can't be deleted — remove the projects first.`
+                : `delete “${client?.name}”? this permanently removes the client and cannot be undone.`}
             </p>
             <button type="button" onClick={remove} disabled={deleting}>
               {deleting ? "deleting…" : "yes, delete"}

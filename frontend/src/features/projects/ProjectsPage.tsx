@@ -22,6 +22,7 @@ export function ProjectsPage() {
   const [money, setMoney] = useState("");
   const [budget, setBudget] = useState("");
   const [notes, setNotes] = useState("");
+  const [description, setDescription] = useState("");
   const [recurringBillingPeriod, setRecurringBillingPeriod] = useState("");
   const [startDate, setStartDate] = useState("");
   const [dueDate, setDueDate] = useState("");
@@ -80,6 +81,7 @@ export function ProjectsPage() {
         currency,
         ...amountField,
         budget: budgetMinor,
+        description: description.trim() || undefined,
         notes: notes.trim() || undefined,
         recurring_billing_period: recurringBillingPeriod.trim() || undefined,
         start_date: startDate || undefined,
@@ -89,6 +91,7 @@ export function ProjectsPage() {
       setName("");
       setMoney("");
       setBudget("");
+      setDescription("");
       setNotes("");
       setRecurringBillingPeriod("");
       setStartDate("");
@@ -255,6 +258,15 @@ export function ProjectsPage() {
               placeholder="monthly"
               value={recurringBillingPeriod}
               onChange={(e) => setRecurringBillingPeriod(e.target.value)}
+            />
+          </div>
+          <div className="field">
+            <label htmlFor="project-description">description (optional)</label>
+            <input
+              id="project-description"
+              type="text"
+              value={description}
+              onChange={(e) => setDescription(e.target.value)}
             />
           </div>
           <div className="field">

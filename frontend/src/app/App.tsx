@@ -9,6 +9,7 @@ import { ClientDetailPage } from "../features/clients/ClientDetailPage";
 import { ProjectsPage } from "../features/projects/ProjectsPage";
 import { ProjectDetailPage } from "../features/projects/ProjectDetailPage";
 import { TasksPage } from "../features/work/TasksPage";
+import { TimesheetPage } from "../features/time/TimesheetPage";
 
 const router = createBrowserRouter([
   { path: "/login", element: <LoginPage /> },
@@ -23,7 +24,7 @@ const router = createBrowserRouter([
       { path: "clients", element: <ClientsPage /> },
       { path: "clients/:id", element: <ClientDetailPage /> },
       { path: "tasks", element: <TasksPage /> },
-      { path: "timesheet", element: <PhasePlaceholder title="timesheet" phase="phase 4" /> },
+      { path: "timesheet", element: <TimesheetPage /> },
       { path: "invoices", element: <PhasePlaceholder title="invoices" phase="phase 5" /> },
       { path: "settings", element: <PhasePlaceholder title="settings" phase="a later phase" /> },
       { path: "about", element: <AboutPage /> },

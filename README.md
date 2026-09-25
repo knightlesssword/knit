@@ -9,10 +9,10 @@ authoritative — read them before changing anything.
 
 ## status
 
-working through phase 3 of 7: auth, clients, projects (with archive),
-milestones, tasks (list + kanban), server-side progress, about page, pwa
-shell. not yet built: time tracking (4), money/invoices (5), files/comments
-(6), command palette + search (7).
+working through phase 4 of 7: auth, clients, projects (with archive),
+milestones, tasks (list + kanban), server-side progress, manual time entries,
+server-computed timesheet, seed fixtures, about page, pwa shell. not yet
+built: money/invoices (5), files/comments (6), command palette + search (7).
 
 ## prerequisites
 
@@ -64,9 +64,14 @@ never commit a real secret key. never log passwords or tokens.
 ## tests
 
 ```powershell
-cd backend; python -m pytest -q   # 49 tests: health, auth, clients, projects, work, migrations
-cd frontend; npm test             # 40 tests: validation, money, duration, api client, states, about
+cd backend; python -m pytest -q   # 58 tests: health, auth, clients, projects, work, time, migrations
+cd frontend; npm test             # 52 tests: validation, money, duration, dates, api client, states, about
 cd frontend; npm run build        # typecheck + production build
+```
+
+```powershell
+# deterministic dev fixtures (refuses non-empty db without --reset)
+cd backend; python scripts/seed.py --reset   # login: dev@knit.local / dev-knit-123
 ```
 
 ## api
@@ -89,7 +94,12 @@ auth is bearer-token; every endpoint is scoped to the authenticated user
   `GET/PATCH/DELETE /api/milestones/{id}` (delete keeps tasks, unassigns them)
 - tasks: `GET/POST /api/projects/{id}/tasks` (milestone must belong to the
   project), `GET /api/tasks`, `GET/PATCH/DELETE /api/tasks/{id}` (status
-  drives `completed_at` server-side)
+  drives `completed_at` server-side; delete blocked with 409 `task_has_time`)
+- time: `GET/POST /api/projects/{id}/time-entries`,
+  `GET /api/time-entries` (`?project_id=&task_id=&billable=&from=&to=`),
+  `GET/PATCH/DELETE /api/time-entries/{id}`,
+  `GET /api/timesheet?week_start=YYYY-MM-DD` (snaps to monday, server-computed
+  day rows + totals + by-project)
 - errors always look like `{error: {code, message}}`. no stack traces leave
   the server.
 

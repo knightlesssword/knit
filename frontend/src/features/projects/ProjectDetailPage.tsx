@@ -10,6 +10,7 @@ import {
   Task,
   TaskPriority,
   TaskStatus,
+  TimeEntry,
   api,
 } from "../../lib/api";
 import {
@@ -69,10 +70,13 @@ export function ProjectDetailPage() {
   const [projectStatus, setProjectStatus] = useState<ProjectStatus>("active");
   const [currency, setCurrency] = useState<ProjectCurrency>("USD");
   const [money, setMoney] = useState("");
+  const [budget, setBudget] = useState("");
+  const [notes, setNotes] = useState("");
+  const [recurringBillingPeriod, setRecurringBillingPeriod] = useState("");
   const [startDate, setStartDate] = useState("");
   const [dueDate, setDueDate] = useState("");
   const [description, setDescription] = useState("");
-  const [fieldErrors, setFieldErrors] = useState<{ name?: string; money?: string }>({});
+  const [fieldErrors, setFieldErrors] = useState<{ name?: string; money?: string; budget?: string }>({});
   const [formError, setFormError] = useState<string | null>(null);
   const [saving, setSaving] = useState(false);
   const [confirmingArchive, setConfirmingArchive] = useState(false);
@@ -100,6 +104,9 @@ export function ProjectDetailPage() {
               ? p.hourly_rate
               : p.recurring_amount;
         setMoney(current !== null ? minorToMajor(current) : "");
+        setBudget(p.budget !== null ? minorToMajor(p.budget) : "");
+        setNotes(p.notes ?? "");
+        setRecurringBillingPeriod(p.recurring_billing_period ?? "");
         setStartDate(p.start_date ?? "");
         setDueDate(p.due_date ?? "");
         setDescription(p.description ?? "");
@@ -148,7 +155,7 @@ export function ProjectDetailPage() {
 
   const save = async (e: FormEvent) => {
     e.preventDefault();
-    const errors: { name?: string; money?: string } = {
+    const errors: { name?: string; money?: string; budget?: string } = {
       name: validateName(name) ?? undefined,
     };
     let minor: number | null = null;
@@ -156,8 +163,13 @@ export function ProjectDetailPage() {
       minor = majorToMinor(money);
       if (minor === null) errors.money = "enter an amount like 42.50";
     }
+    let budgetMinor: number | null = null;
+    if (budget.trim()) {
+      budgetMinor = majorToMinor(budget);
+      if (budgetMinor === null) errors.budget = "enter an amount like 42.50";
+    }
     setFieldErrors(errors);
-    if (errors.name || errors.money) return; // preserve input on error
+    if (errors.name || errors.money || errors.budget) return; // preserve input on error
     setSaving(true);
     setFormError(null);
     try {
@@ -173,6 +185,9 @@ export function ProjectDetailPage() {
         status: projectStatus,
         currency,
         description: description.trim() || undefined,
+        notes: notes.trim() || undefined,
+        budget: budgetMinor,
+        recurring_billing_period: recurringBillingPeriod.trim() || undefined,
         ...amountField,
         start_date: startDate || undefined,
         due_date: dueDate || undefined,
@@ -347,6 +362,29 @@ export function ProjectDetailPage() {
             {fieldErrors.money ? <p className="field-error">{fieldErrors.money}</p> : null}
           </div>
           <div className="field">
+            <label htmlFor="detail-project-budget">budget (optional)</label>
+            <input
+              id="detail-project-budget"
+              type="text"
+              inputMode="decimal"
+              placeholder="42.50"
+              value={budget}
+              onChange={(e) => setBudget(e.target.value)}
+              aria-invalid={Boolean(fieldErrors.budget)}
+            />
+            {fieldErrors.budget ? <p className="field-error">{fieldErrors.budget}</p> : null}
+          </div>
+          <div className="field">
+            <label htmlFor="detail-project-period">recurring billing period (optional)</label>
+            <input
+              id="detail-project-period"
+              type="text"
+              placeholder="monthly"
+              value={recurringBillingPeriod}
+              onChange={(e) => setRecurringBillingPeriod(e.target.value)}
+            />
+          </div>
+          <div className="field">
             <label htmlFor="detail-project-start">start date (optional)</label>
             <input
               id="detail-project-start"
@@ -371,6 +409,15 @@ export function ProjectDetailPage() {
               type="text"
               value={description}
               onChange={(e) => setDescription(e.target.value)}
+            />
+          </div>
+          <div className="field">
+            <label htmlFor="detail-project-notes">notes (optional)</label>
+            <input
+              id="detail-project-notes"
+              type="text"
+              value={notes}
+              onChange={(e) => setNotes(e.target.value)}
             />
           </div>
           <button type="submit" disabled={saving}>
@@ -441,7 +488,7 @@ export function ProjectDetailPage() {
       </section>
 
       <hr className="rule" />
-      <EmptyState title="time" body="time tracking arrives in phase 4." />
+      <TimeSection projectId={projectId} />
       <hr className="rule" />
       <EmptyState title="files" body="project files arrive in a later phase." />
     </div>
@@ -1054,5 +1101,62 @@ function TaskEditor({
         cancel
       </button>
     </form>
+  );
+}
+
+function TimeSection({ projectId }: { projectId: number }) {
+  const [status, setStatus] = useState<WorkStatus>("loading");
+  const [entries, setEntries] = useState<TimeEntry[]>([]);
+  const [error, setError] = useState<string | null>(null);
+
+  const load = () => {
+    setStatus("loading");
+    api.timeEntries
+      .listByProject(projectId)
+      .then((list) => {
+        setEntries(list);
+        setStatus("ready");
+      })
+      .catch((err: unknown) => {
+        setError(err instanceof ApiError ? err.message : "couldn't load time");
+        setStatus("error");
+      });
+  };
+
+  useEffect(load, [projectId]); // eslint-disable-line react-hooks/exhaustive-deps
+
+  const total = entries.reduce((sum, e) => sum + e.duration_seconds, 0);
+
+  return (
+    <section aria-labelledby="time">
+      <h2 id="time">time</h2>
+      {status === "loading" ? (
+        <Loading label="loading time" />
+      ) : status === "error" ? (
+        <ErrorState message={error ?? "couldn't load time"} onRetry={load} />
+      ) : entries.length === 0 ? (
+        <p className="meta">no time logged yet.</p>
+      ) : (
+        <>
+          <ul>
+            {entries.map((entry) => (
+              <li key={entry.id}>
+                {entry.entry_date}
+                {" — "}
+                {entry.description || entry.task_title || "untracked work"}
+                {" · "}
+                {formatDuration(entry.duration_seconds)}
+                {" · "}
+                {entry.billable ? "billable" : "non-billable"}
+              </li>
+            ))}
+          </ul>
+          <p className="meta">project total {formatDuration(total)}</p>
+        </>
+      )}
+      <p className="meta">
+        <Link to="/timesheet">open timesheet</Link>
+      </p>
+    </section>
   );
 }

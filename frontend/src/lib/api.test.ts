@@ -167,4 +167,45 @@ describe("api client", () => {
     await expect(api.tasks.remove(1)).resolves.toBeUndefined();
     expect(fetchMock.mock.calls[5][1].method).toBe("DELETE");
   });
+
+  it("lists, creates, updates and deletes time entries", async () => {
+    const entry = { id: 1, entry_date: "2026-09-22", duration_seconds: 3600 };
+    const fetchMock = vi.fn().mockResolvedValue(jsonResponse([entry]));
+    vi.stubGlobal("fetch", fetchMock);
+    await expect(api.timeEntries.listByProject(2)).resolves.toEqual([entry]);
+    expect(fetchMock.mock.calls[0][0]).toBe("/api/projects/2/time-entries");
+
+    await api.timeEntries.listFiltered({ from: "2026-09-21", to: "2026-09-27" });
+    expect(fetchMock.mock.calls[1][0]).toBe("/api/time-entries?from=2026-09-21&to=2026-09-27");
+
+    await api.timeEntries.listFiltered({ project_id: 2 });
+    expect(fetchMock.mock.calls[2][0]).toBe("/api/time-entries?project_id=2");
+
+    fetchMock.mockResolvedValue(jsonResponse(entry, 201));
+    await expect(
+      api.timeEntries.create(2, { entry_date: "2026-09-22", duration_seconds: 3600 }),
+    ).resolves.toEqual(entry);
+    expect(fetchMock.mock.calls[3][0]).toBe("/api/projects/2/time-entries");
+    expect(fetchMock.mock.calls[3][1].method).toBe("POST");
+
+    fetchMock.mockResolvedValue(jsonResponse(entry));
+    await api.timeEntries.get(1);
+    expect(fetchMock.mock.calls[4][0]).toBe("/api/time-entries/1");
+
+    await api.timeEntries.update(1, { duration_seconds: 7200 });
+    expect(fetchMock.mock.calls[5][0]).toBe("/api/time-entries/1");
+    expect(fetchMock.mock.calls[5][1].method).toBe("PATCH");
+
+    fetchMock.mockResolvedValue({ ok: true, status: 204 });
+    await expect(api.timeEntries.remove(1)).resolves.toBeUndefined();
+    expect(fetchMock.mock.calls[6][1].method).toBe("DELETE");
+  });
+
+  it("fetches the weekly timesheet summary", async () => {
+    const summary = { week_start: "2026-09-21", week_total_seconds: 3600 };
+    const fetchMock = vi.fn().mockResolvedValue(jsonResponse(summary));
+    vi.stubGlobal("fetch", fetchMock);
+    await expect(api.timesheet("2026-09-21")).resolves.toEqual(summary);
+    expect(fetchMock.mock.calls[0][0]).toBe("/api/timesheet?week_start=2026-09-21");
+  });
 });

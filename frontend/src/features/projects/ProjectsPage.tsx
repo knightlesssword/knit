@@ -20,9 +20,12 @@ export function ProjectsPage() {
   const [projectStatus, setProjectStatus] = useState<ProjectStatus>("active");
   const [currency, setCurrency] = useState<ProjectCurrency>("USD");
   const [money, setMoney] = useState("");
+  const [budget, setBudget] = useState("");
+  const [notes, setNotes] = useState("");
+  const [recurringBillingPeriod, setRecurringBillingPeriod] = useState("");
   const [startDate, setStartDate] = useState("");
   const [dueDate, setDueDate] = useState("");
-  const [fieldErrors, setFieldErrors] = useState<{ name?: string; client?: string; money?: string }>({});
+  const [fieldErrors, setFieldErrors] = useState<{ name?: string; client?: string; money?: string; budget?: string }>({});
   const [formError, setFormError] = useState<string | null>(null);
   const [busy, setBusy] = useState(false);
 
@@ -44,7 +47,7 @@ export function ProjectsPage() {
 
   const submit = async (e: FormEvent) => {
     e.preventDefault();
-    const errors: { name?: string; client?: string; money?: string } = {
+    const errors: { name?: string; client?: string; money?: string; budget?: string } = {
       name: validateName(name) ?? undefined,
       client: clientId ? undefined : "choose a client",
     };
@@ -53,8 +56,13 @@ export function ProjectsPage() {
       minor = majorToMinor(money);
       if (minor === null) errors.money = "enter an amount like 42.50";
     }
+    let budgetMinor: number | null = null;
+    if (budget.trim()) {
+      budgetMinor = majorToMinor(budget);
+      if (budgetMinor === null) errors.budget = "enter an amount like 42.50";
+    }
     setFieldErrors(errors);
-    if (errors.name || errors.client || errors.money) return; // preserve input on error
+    if (errors.name || errors.client || errors.money || errors.budget) return; // preserve input on error
     setBusy(true);
     setFormError(null);
     try {
@@ -71,12 +79,18 @@ export function ProjectsPage() {
         status: projectStatus,
         currency,
         ...amountField,
+        budget: budgetMinor,
+        notes: notes.trim() || undefined,
+        recurring_billing_period: recurringBillingPeriod.trim() || undefined,
         start_date: startDate || undefined,
         due_date: dueDate || undefined,
       });
       setProjects((prev) => [...prev, created]);
       setName("");
       setMoney("");
+      setBudget("");
+      setNotes("");
+      setRecurringBillingPeriod("");
       setStartDate("");
       setDueDate("");
       setFieldErrors({});
@@ -219,6 +233,38 @@ export function ProjectsPage() {
               aria-invalid={Boolean(fieldErrors.money)}
             />
             {fieldErrors.money ? <p className="field-error">{fieldErrors.money}</p> : null}
+          </div>
+          <div className="field">
+            <label htmlFor="project-budget">budget (optional)</label>
+            <input
+              id="project-budget"
+              type="text"
+              inputMode="decimal"
+              placeholder="42.50"
+              value={budget}
+              onChange={(e) => setBudget(e.target.value)}
+              aria-invalid={Boolean(fieldErrors.budget)}
+            />
+            {fieldErrors.budget ? <p className="field-error">{fieldErrors.budget}</p> : null}
+          </div>
+          <div className="field">
+            <label htmlFor="project-period">recurring billing period (optional)</label>
+            <input
+              id="project-period"
+              type="text"
+              placeholder="monthly"
+              value={recurringBillingPeriod}
+              onChange={(e) => setRecurringBillingPeriod(e.target.value)}
+            />
+          </div>
+          <div className="field">
+            <label htmlFor="project-notes">notes (optional)</label>
+            <input
+              id="project-notes"
+              type="text"
+              value={notes}
+              onChange={(e) => setNotes(e.target.value)}
+            />
           </div>
           <div className="field">
             <label htmlFor="project-start">start date (optional)</label>

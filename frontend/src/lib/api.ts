@@ -152,6 +152,56 @@ export interface TaskInput {
   estimated_duration_seconds?: number | null;
 }
 
+export interface TimeEntry {
+  id: number;
+  project_id: number;
+  task_id: number | null;
+  entry_date: string;
+  duration_seconds: number;
+  description: string | null;
+  billable: boolean;
+  created_at: string;
+  updated_at: string;
+  project_name: string;
+  task_title: string | null;
+}
+
+export interface TimeEntryInput {
+  task_id?: number | null;
+  entry_date: string;
+  duration_seconds: number;
+  description?: string | null;
+  billable?: boolean;
+}
+
+export interface TimeEntryFilter {
+  project_id?: number;
+  from?: string;
+  to?: string;
+}
+
+export interface WeekDaySummary {
+  date: string;
+  total_seconds: number;
+  billable_seconds: number;
+  non_billable_seconds: number;
+}
+
+export interface WeekProjectSummary {
+  project_id: number;
+  project_name: string;
+  total_seconds: number;
+}
+
+export interface WeekSummary {
+  week_start: string;
+  days: WeekDaySummary[];
+  week_total_seconds: number;
+  week_billable_seconds: number;
+  week_non_billable_seconds: number;
+  by_project: WeekProjectSummary[];
+}
+
 const TOKEN_KEY = "knit.token";
 
 export function getToken(): string | null {
@@ -268,4 +318,32 @@ export const api = {
     remove: (id: number) =>
       apiFetch<void>(`/api/tasks/${id}`, { method: "DELETE" }),
   },
+  timeEntries: {
+    listByProject: (projectId: number) =>
+      apiFetch<TimeEntry[]>(`/api/projects/${projectId}/time-entries`),
+    listFiltered: (filter: TimeEntryFilter = {}) => {
+      const params = new URLSearchParams();
+      if (filter.project_id !== undefined)
+        params.set("project_id", String(filter.project_id));
+      if (filter.from) params.set("from", filter.from);
+      if (filter.to) params.set("to", filter.to);
+      const query = params.toString();
+      return apiFetch<TimeEntry[]>(`/api/time-entries${query ? `?${query}` : ""}`);
+    },
+    get: (id: number) => apiFetch<TimeEntry>(`/api/time-entries/${id}`),
+    create: (projectId: number, input: TimeEntryInput) =>
+      apiFetch<TimeEntry>(`/api/projects/${projectId}/time-entries`, {
+        method: "POST",
+        body: JSON.stringify(input),
+      }),
+    update: (id: number, input: Partial<TimeEntryInput>) =>
+      apiFetch<TimeEntry>(`/api/time-entries/${id}`, {
+        method: "PATCH",
+        body: JSON.stringify(input),
+      }),
+    remove: (id: number) =>
+      apiFetch<void>(`/api/time-entries/${id}`, { method: "DELETE" }),
+  },
+  timesheet: (weekStart: string) =>
+    apiFetch<WeekSummary>(`/api/timesheet?week_start=${encodeURIComponent(weekStart)}`),
 };

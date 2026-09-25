@@ -24,12 +24,6 @@ def _require_name(value: str) -> str:
     return value
 
 
-def _optional_name(value: str | None) -> str | None:
-    if value is None:
-        return None
-    return _require_name(value)
-
-
 def _optional_email(value: str | None) -> str | None:
     if value is None:
         return None
@@ -108,7 +102,8 @@ class ClientCreate(BaseModel):
 
 
 class ClientUpdate(BaseModel):
-    name: Annotated[str | None, Field(default=None, max_length=120)]
+    # Non-nullable: explicit null is a 422; omission means "no change".
+    name: Annotated[str, Field(default=None, min_length=1, max_length=120)]
     company: Annotated[str | None, Field(default=None, max_length=200)]
     email: Annotated[str | None, Field(default=None, max_length=320)]
     phone: Annotated[str | None, Field(default=None, max_length=60)]
@@ -116,8 +111,8 @@ class ClientUpdate(BaseModel):
 
     @field_validator("name")
     @classmethod
-    def clean_name(cls, v: str | None) -> str | None:
-        return _optional_name(v)
+    def clean_name(cls, v: str) -> str:
+        return _require_name(v)
 
     @field_validator("company", "phone", "notes")
     @classmethod
@@ -194,11 +189,12 @@ class ProjectCreate(BaseModel):
 
 
 class ProjectUpdate(BaseModel):
-    name: Annotated[str | None, Field(default=None, max_length=120)]
-    client_id: Annotated[int | None, Field(default=None, gt=0)]
-    project_type: ProjectType | None = None
-    status: ProjectStatus | None = None
-    currency: Currency | None = None
+    # Non-nullable fields: explicit null is a 422; omission means "no change".
+    name: Annotated[str, Field(default=None, min_length=1, max_length=120)]
+    client_id: Annotated[int, Field(default=None, gt=0)]
+    project_type: Annotated[ProjectType, Field(default=None)]
+    status: Annotated[ProjectStatus, Field(default=None)]
+    currency: Annotated[Currency, Field(default=None)]
     description: Annotated[str | None, Field(default=None, max_length=5000)]
     notes: Annotated[str | None, Field(default=None, max_length=5000)]
     budget: Money = None
@@ -211,8 +207,8 @@ class ProjectUpdate(BaseModel):
 
     @field_validator("name")
     @classmethod
-    def clean_name(cls, v: str | None) -> str | None:
-        return _optional_name(v)
+    def clean_name(cls, v: str) -> str:
+        return _require_name(v)
 
     @field_validator("description", "notes", "recurring_billing_period")
     @classmethod
@@ -274,16 +270,17 @@ class MilestoneCreate(BaseModel):
 
 
 class MilestoneUpdate(BaseModel):
-    name: Annotated[str | None, Field(default=None, max_length=120)]
+    # Non-nullable: explicit null is a 422; omission means "no change".
+    name: Annotated[str, Field(default=None, max_length=120)]
     description: Annotated[str | None, Field(default=None, max_length=5000)]
     due_date: date | None = None
-    status: MilestoneStatus | None = None
+    status: Annotated[MilestoneStatus, Field(default=None)]
     position: Annotated[int | None, Field(default=None, ge=0)] = None
 
     @field_validator("name")
     @classmethod
-    def clean_name(cls, v: str | None) -> str | None:
-        return _optional_name(v)
+    def clean_name(cls, v: str) -> str:
+        return _require_name(v)
 
     @field_validator("description")
     @classmethod
@@ -313,7 +310,7 @@ class TaskCreate(BaseModel):
     status: TaskStatus = "todo"
     priority: TaskPriority = "medium"
     due_date: date | None = None
-    estimated_duration_seconds: Annotated[int | None, Field(default=None, ge=0)] = None
+    estimated_duration_seconds: Annotated[int | None, Field(default=None, gt=0)] = None
 
     @field_validator("title")
     @classmethod
@@ -327,18 +324,20 @@ class TaskCreate(BaseModel):
 
 
 class TaskUpdate(BaseModel):
-    title: Annotated[str | None, Field(default=None, max_length=200)]
+    # Non-nullable: explicit null is a 422; omission means "no change".
+    # Estimates must be positive (0 is meaningless; null means no estimate).
+    title: Annotated[str, Field(default=None, max_length=200)]
     description: Annotated[str | None, Field(default=None, max_length=5000)]
     milestone_id: Annotated[int | None, Field(default=None, gt=0)] = None
-    status: TaskStatus | None = None
-    priority: TaskPriority | None = None
+    status: Annotated[TaskStatus, Field(default=None)]
+    priority: Annotated[TaskPriority, Field(default=None)]
     due_date: date | None = None
-    estimated_duration_seconds: Annotated[int | None, Field(default=None, ge=0)] = None
+    estimated_duration_seconds: Annotated[int | None, Field(default=None, gt=0)] = None
 
     @field_validator("title")
     @classmethod
-    def clean_title(cls, v: str | None) -> str | None:
-        return _optional_name(v)
+    def clean_title(cls, v: str) -> str:
+        return _require_name(v)
 
     @field_validator("description")
     @classmethod
@@ -379,11 +378,13 @@ class TimeEntryCreate(BaseModel):
 
 
 class TimeEntryUpdate(BaseModel):
+    # Non-nullable except description/task_id: explicit null is a 422
+    # (previously null was silently ignored — a contract violation).
     task_id: Annotated[int | None, Field(default=None, gt=0)] = None
-    entry_date: date | None = None
-    duration_seconds: Annotated[int | None, Field(default=None, gt=0)] = None
+    entry_date: Annotated[date, Field(default=None)]
+    duration_seconds: Annotated[int, Field(default=None, gt=0)]
     description: Annotated[str | None, Field(default=None, max_length=5000)] = None
-    billable: bool | None = None
+    billable: Annotated[bool, Field(default=None)]
 
     @field_validator("description")
     @classmethod

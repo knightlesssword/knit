@@ -4,7 +4,8 @@ import logging
 from datetime import datetime, timezone
 from typing import Any
 
-from fastapi import APIRouter, Depends, HTTPException, Response
+from fastapi import APIRouter, Depends, Response
+from sqlalchemy.exc import IntegrityError
 from sqlalchemy.orm import Session
 
 from ..database import get_db
@@ -22,7 +23,7 @@ def _owned(db: Session, user_id: int, client_id: int) -> Client:
         db.query(Client).filter(Client.id == client_id, Client.user_id == user_id).one_or_none()
     )
     if client is None:
-        raise HTTPException(status_code=404, detail="client not found")
+        raise coded_error(404, "client_not_found", "client not found")
     return client
 
 
@@ -136,7 +137,14 @@ def delete_client(
         raise coded_error(
             409, "client_has_projects", "client has projects and cannot be deleted"
         )
-    db.delete(client)
-    db.commit()
+    try:
+        db.delete(client)
+        db.commit()
+    except IntegrityError:
+        # Child row appeared between guard and commit: same answer, no 500.
+        db.rollback()
+        raise coded_error(
+            409, "client_has_projects", "client has projects and cannot be deleted"
+        ) from None
     logger.info("client_delete resource=client identifier=%s user=%s", client_id, user.id)
     return Response(status_code=204)

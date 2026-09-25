@@ -65,7 +65,9 @@ def migrate(db_path: str) -> list[int]:
             with open(path, encoding="utf-8") as f:
                 sql = f.read()
             logger.info("migrate_apply version=%d file=%s", version, os.path.basename(path))
-            with conn:  # transaction: all-or-nothing per migration
+            with conn:  # one transaction per migration (scripts are simple
+                # CREATEs; executescript itself commits DDL as it goes, so this
+                # groups the version bookkeeping, not DDL, atomically)
                 conn.executescript(sql)
                 conn.execute(
                     "INSERT INTO schema_migrations (version, applied_at) VALUES (?, ?)",

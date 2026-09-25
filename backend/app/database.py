@@ -1,5 +1,5 @@
 """SQLAlchemy engine/session. Migrations stay authoritative plain SQL (app/db.py);
-models here must match the migrated schema. A startup check enforces parity.
+models here must match the migrated schema (enforced by test_migrations.py).
 """
 from __future__ import annotations
 

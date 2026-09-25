@@ -10,6 +10,7 @@ from datetime import datetime, timezone
 from typing import Any
 
 from fastapi import APIRouter, Depends, Response
+from sqlalchemy.exc import IntegrityError
 from sqlalchemy.orm import Session
 
 from ..database import get_db
@@ -235,11 +236,9 @@ def delete_task(
 ):
     task = _owned_task(db, user.id, task_id)
     # Time entries are work records: a task with logged time cannot disappear.
+    # Ownership is established by _owned_task, so the guard filters task only.
     has_time = (
-        db.query(TimeEntry.id)
-        .filter(TimeEntry.user_id == user.id, TimeEntry.task_id == task.id)
-        .first()
-        is not None
+        db.query(TimeEntry.id).filter(TimeEntry.task_id == task.id).first() is not None
     )
     if has_time:
         raise coded_error(
@@ -248,7 +247,17 @@ def delete_task(
             "task has time entries and cannot be deleted; "
             "remove the time entries first",
         )
-    db.delete(task)
-    db.commit()
+    try:
+        db.delete(task)
+        db.commit()
+    except IntegrityError:
+        # Time entry appeared between guard and commit: same answer, no 500.
+        db.rollback()
+        raise coded_error(
+            409,
+            "task_has_time",
+            "task has time entries and cannot be deleted; "
+            "remove the time entries first",
+        ) from None
     logger.info("task_delete resource=task identifier=%s user=%s", task_id, user.id)
     return Response(status_code=204)

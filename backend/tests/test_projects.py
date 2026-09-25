@@ -202,6 +202,21 @@ def test_update_unknown_project_404(client):
     token = _register(client, "ava@example.com")
     res = client.patch("/api/projects/999", json={"name": "X"}, headers=_auth(token))
     assert res.status_code == 404
+    assert res.json()["error"]["code"] == "project_not_found"
+
+
+def test_patch_explicit_null_rejected(client):
+    token = _register(client, "ava@example.com")
+    cid = _client_id(client, token)
+    body = _create_project(client, token, cid)
+    for field in ("name", "client_id", "project_type", "status", "currency"):
+        res = client.patch(
+            f"/api/projects/{body['id']}", json={field: None}, headers=_auth(token)
+        )
+        assert res.status_code == 422, field
+        assert res.json()["error"]["code"] == "validation_error"
+    # row untouched, no 500
+    assert client.get(f"/api/projects/{body['id']}", headers=_auth(token)).status_code == 200
 
 
 def test_delete_project(client):

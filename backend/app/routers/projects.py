@@ -9,8 +9,9 @@ import logging
 from datetime import datetime, timezone
 from typing import Any
 
-from fastapi import APIRouter, Depends, HTTPException, Response
+from fastapi import APIRouter, Depends, Response
 from sqlalchemy import func
+from sqlalchemy.exc import IntegrityError
 from sqlalchemy.orm import Session
 
 from ..database import get_db
@@ -43,7 +44,7 @@ def _owned_project(db: Session, user_id: int, project_id: int) -> Project:
         .one_or_none()
     )
     if project is None:
-        raise HTTPException(status_code=404, detail="project not found")
+        raise coded_error(404, "project_not_found", "project not found")
     return project
 
 
@@ -255,7 +256,17 @@ def delete_project(
             "project has milestones, tasks, or time entries and cannot be "
             "deleted; archive it instead",
         )
-    db.delete(project)
-    db.commit()
+    try:
+        db.delete(project)
+        db.commit()
+    except IntegrityError:
+        # Dependent row appeared between guard and commit: same answer, no 500.
+        db.rollback()
+        raise coded_error(
+            409,
+            "project_has_work",
+            "project has milestones, tasks, or time entries and cannot be "
+            "deleted; archive it instead",
+        ) from None
     logger.info("project_delete resource=project identifier=%s user=%s", project_id, user.id)
     return Response(status_code=204)

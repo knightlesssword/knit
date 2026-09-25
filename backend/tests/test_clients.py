@@ -108,4 +108,16 @@ def test_update_unknown_client_404(client):
     token = _register(client, "ava@example.com")
     res = client.patch("/api/clients/999", json={"name": "X"}, headers=_auth(token))
     assert res.status_code == 404
-    assert res.json()["error"]["code"] == "not_found"
+    assert res.json()["error"]["code"] == "client_not_found"
+
+
+def test_patch_explicit_null_rejected(client):
+    token = _register(client, "ava@example.com")
+    created = client.post("/api/clients", json={"name": "Acme"}, headers=_auth(token)).json()
+    res = client.patch(
+        f"/api/clients/{created['id']}", json={"name": None}, headers=_auth(token)
+    )
+    assert res.status_code == 422
+    assert res.json()["error"]["code"] == "validation_error"
+    # row untouched, no 500
+    assert client.get(f"/api/clients/{created['id']}", headers=_auth(token)).json()["name"] == "Acme"

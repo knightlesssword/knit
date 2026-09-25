@@ -17,6 +17,7 @@ from .routers.health import router as health_router
 from .routers.milestones import router as milestones_router
 from .routers.projects import router as projects_router
 from .routers.tasks import router as tasks_router
+from .routers.time_entries import router as time_entries_router
 
 logging.basicConfig(
     level=logging.INFO,
@@ -53,6 +54,7 @@ def create_app() -> FastAPI:
     app.include_router(projects_router, prefix="/api")
     app.include_router(milestones_router, prefix="/api")
     app.include_router(tasks_router, prefix="/api")
+    app.include_router(time_entries_router, prefix="/api")
 
     return app
 

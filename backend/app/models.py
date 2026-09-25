@@ -101,3 +101,25 @@ class Task(Base):
     completed_at: Mapped[str | None] = mapped_column(String(32), nullable=True)
     created_at: Mapped[str] = mapped_column(String(32), nullable=False)
     updated_at: Mapped[str] = mapped_column(String(32), nullable=False)
+
+
+class TimeEntry(Base):
+    __tablename__ = "time_entries"
+
+    id: Mapped[int] = mapped_column(primary_key=True, autoincrement=True)
+    user_id: Mapped[int] = mapped_column(ForeignKey("users.id", ondelete="CASCADE"), index=True)
+    project_id: Mapped[int] = mapped_column(
+        ForeignKey("projects.id", ondelete="RESTRICT"), index=True
+    )
+    task_id: Mapped[int | None] = mapped_column(
+        ForeignKey("tasks.id", ondelete="RESTRICT"), index=True, nullable=True
+    )
+    # Date-only value as YYYY-MM-DD text, never a timestamp.
+    entry_date: Mapped[str] = mapped_column(String(10), nullable=False, index=True)
+    # Duration in integer seconds, never float, always positive.
+    duration_seconds: Mapped[int] = mapped_column(nullable=False)
+    description: Mapped[str | None] = mapped_column(Text, nullable=True)
+    # SQLite boolean as 0/1; the API layer converts to bool.
+    billable: Mapped[int] = mapped_column(Integer, nullable=False, default=1)
+    created_at: Mapped[str] = mapped_column(String(32), nullable=False)
+    updated_at: Mapped[str] = mapped_column(String(32), nullable=False)

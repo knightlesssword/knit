@@ -47,7 +47,13 @@ def register_error_handlers(app: FastAPI) -> None:
 
     @app.exception_handler(RequestValidationError)
     async def validation_handler(request: Request, exc: RequestValidationError) -> JSONResponse:
-        logger.warning("validation_error path=%s errors=%s", request.url.path, exc.errors())
+        # Never log submitted values: exc.errors() includes the raw `input`,
+        # so a mistyped password would land in the logs. Keep loc/msg/type.
+        sanitized = [
+            {k: err[k] for k in ("loc", "msg", "type") if k in err}
+            for err in exc.errors()
+        ]
+        logger.warning("validation_error path=%s errors=%s", request.url.path, sanitized)
         return JSONResponse(
             status_code=422,
             content=error_body("validation_error", "request validation failed"),

@@ -362,3 +362,67 @@ class TaskOut(BaseModel):
     updated_at: str
     project_name: str
     milestone_name: str | None
+
+
+class TimeEntryCreate(BaseModel):
+    # project_id comes from the URL, never the body.
+    task_id: Annotated[int | None, Field(default=None, gt=0)] = None
+    entry_date: date
+    duration_seconds: Annotated[int, Field(gt=0)]
+    description: Annotated[str | None, Field(default=None, max_length=5000)] = None
+    billable: bool = True
+
+    @field_validator("description")
+    @classmethod
+    def clean_text(cls, v: str | None) -> str | None:
+        return _optional_text(v)
+
+
+class TimeEntryUpdate(BaseModel):
+    task_id: Annotated[int | None, Field(default=None, gt=0)] = None
+    entry_date: date | None = None
+    duration_seconds: Annotated[int | None, Field(default=None, gt=0)] = None
+    description: Annotated[str | None, Field(default=None, max_length=5000)] = None
+    billable: bool | None = None
+
+    @field_validator("description")
+    @classmethod
+    def clean_text(cls, v: str | None) -> str | None:
+        return _optional_text(v)
+
+
+class TimeEntryOut(BaseModel):
+    id: int
+    user_id: int
+    project_id: int
+    task_id: int | None
+    entry_date: date
+    duration_seconds: int
+    description: str | None
+    billable: bool
+    created_at: str
+    updated_at: str
+    project_name: str
+    task_title: str | None
+
+
+class TimesheetDayOut(BaseModel):
+    date: date
+    total_seconds: int
+    billable_seconds: int
+    non_billable_seconds: int
+
+
+class TimesheetProjectOut(BaseModel):
+    project_id: int
+    project_name: str
+    total_seconds: int
+
+
+class WeekSummaryOut(BaseModel):
+    week_start: date
+    days: list[TimesheetDayOut]
+    week_total_seconds: int
+    week_billable_seconds: int
+    week_non_billable_seconds: int
+    by_project: list[TimesheetProjectOut]

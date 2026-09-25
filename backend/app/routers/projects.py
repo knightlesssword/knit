@@ -16,7 +16,7 @@ from sqlalchemy.orm import Session
 from ..database import get_db
 from ..deps import get_current_user
 from ..errors import coded_error
-from ..models import Client, Milestone, Project, Task, User
+from ..models import Client, Milestone, Project, Task, TimeEntry, User
 from ..schemas import ProjectCreate, ProjectOut, ProjectUpdate
 
 logger = logging.getLogger("knit.projects")
@@ -243,12 +243,17 @@ def delete_project(
         .filter(Task.user_id == user.id, Task.project_id == project.id)
         .first()
         is not None
+        or db.query(TimeEntry.id)
+        .filter(TimeEntry.user_id == user.id, TimeEntry.project_id == project.id)
+        .first()
+        is not None
     )
     if has_work:
         raise coded_error(
             409,
             "project_has_work",
-            "project has milestones or tasks and cannot be deleted; archive it instead",
+            "project has milestones, tasks, or time entries and cannot be "
+            "deleted; archive it instead",
         )
     db.delete(project)
     db.commit()

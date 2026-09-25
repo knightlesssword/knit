@@ -15,7 +15,7 @@ from sqlalchemy.orm import Session
 from ..database import get_db
 from ..deps import get_current_user
 from ..errors import coded_error
-from ..models import Milestone, Project, Task, User
+from ..models import Milestone, Project, Task, TimeEntry, User
 from ..schemas import TaskCreate, TaskOut, TaskUpdate
 
 logger = logging.getLogger("knit.tasks")
@@ -234,6 +234,20 @@ def delete_task(
     db: Session = Depends(get_db),  # noqa: B008
 ):
     task = _owned_task(db, user.id, task_id)
+    # Time entries are work records: a task with logged time cannot disappear.
+    has_time = (
+        db.query(TimeEntry.id)
+        .filter(TimeEntry.user_id == user.id, TimeEntry.task_id == task.id)
+        .first()
+        is not None
+    )
+    if has_time:
+        raise coded_error(
+            409,
+            "task_has_time",
+            "task has time entries and cannot be deleted; "
+            "remove the time entries first",
+        )
     db.delete(task)
     db.commit()
     logger.info("task_delete resource=task identifier=%s user=%s", task_id, user.id)
